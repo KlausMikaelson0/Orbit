@@ -401,12 +401,14 @@ export function LivekitChannelRoom({
     let mounted = true;
     setLoadingSubscription(true);
     setEntitlementError(null);
-    void supabase
-      .from("profile_subscriptions")
-      .select("tier, status")
-      .eq("profile_id", userId)
-      .maybeSingle()
-      .then((result) => {
+    void (async () => {
+      try {
+        const result = await supabase
+          .from("profile_subscriptions")
+          .select("tier, status")
+          .eq("profile_id", userId)
+          .maybeSingle();
+
         if (!mounted) {
           return;
         }
@@ -424,8 +426,7 @@ export function LivekitChannelRoom({
         setSubscriptionTier(row?.tier ?? "FREE");
         setSubscriptionStatus(row?.status ?? null);
         setLoadingSubscription(false);
-      })
-      .catch(() => {
+      } catch {
         if (!mounted) {
           return;
         }
@@ -433,7 +434,8 @@ export function LivekitChannelRoom({
         setSubscriptionTier("FREE");
         setSubscriptionStatus(null);
         setLoadingSubscription(false);
-      });
+      }
+    })();
 
     return () => {
       mounted = false;
