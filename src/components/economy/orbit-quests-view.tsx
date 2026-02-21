@@ -14,6 +14,22 @@ import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { OrbitProfileWallet, OrbitQuest, OrbitQuestProgress } from "@/src/types/orbit";
 
 type QuestTab = "ALL" | "CLAIMED";
+type SponsoredGateMode = "WATCH" | "PLAY";
+
+interface SponsoredGateState {
+  questId: string;
+  mode: SponsoredGateMode;
+  secondsLeft: number;
+  taps: number;
+  completed: boolean;
+  failed: boolean;
+}
+
+const SPONSORED_WATCH_SECONDS = 20;
+const SPONSORED_PLAY_SECONDS = 25;
+const SPONSORED_PLAY_TAPS = 14;
+const SPONSORED_DEMO_VIDEO_URL =
+  "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 
 const categoryBackground: Record<string, string> = {
   VISIT:
@@ -44,6 +60,7 @@ export function OrbitQuestsView() {
   const [wallet, setWallet] = useState<OrbitProfileWallet | null>(null);
   const [quests, setQuests] = useState<OrbitQuest[]>([]);
   const [progressRows, setProgressRows] = useState<OrbitQuestProgress[]>([]);
+  const [sponsoredGate, setSponsoredGate] = useState<SponsoredGateState | null>(null);
 
   const progressByQuestId = useMemo(
     () =>
@@ -60,6 +77,11 @@ export function OrbitQuestsView() {
     }
     return quests.filter((quest) => Boolean(progressByQuestId[quest.id]?.last_claimed_at));
   }, [progressByQuestId, quests, tab]);
+
+  const activeSponsoredQuest = useMemo(
+    () => quests.find((quest) => quest.id === sponsoredGate?.questId) ?? null,
+    [quests, sponsoredGate?.questId],
+  );
 
   const fetchQuestState = useCallback(async () => {
     setLoading(true);
@@ -133,6 +155,86 @@ export function OrbitQuestsView() {
   useEffect(() => {
     void fetchQuestState();
   }, [fetchQuestState]);
+
+  useEffect(() => {
+    if (!sponsoredGate || sponsoredGate.completed || sponsoredGate.failed) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setSponsoredGate((current) => {
+        if (!current || current.completed || current.failed) {
+          return current;
+        }
+        if (current.secondsLeft <= 1) {
+          if (current.mode === "WATCH") {
+            return {
+              ...current,
+              secondsLeft: 0,
+              completed: true,
+            };
+          }
+
+          const finished = current.taps >= SPONSORED_PLAY_TAPS;
+          return {
+            ...current,
+            secondsLeft: 0,
+            completed: finished,
+            failed: !finished,
+          };
+        }
+
+        return {
+          ...current,
+          secondsLeft: current.secondsLeft - 1,
+        };
+      });
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [sponsoredGate]);
+
+  function startSponsoredGate(quest: OrbitQuest) {
+    const mode: SponsoredGateMode = quest.category === "PLAY" ? "PLAY" : "WATCH";
+    setError(null);
+    setSuccess(null);
+    setSponsoredGate({
+      questId: quest.id,
+      mode,
+      secondsLeft: mode === "WATCH" ? SPONSORED_WATCH_SECONDS : SPONSORED_PLAY_SECONDS,
+      taps: 0,
+      completed: false,
+      failed: false,
+    });
+  }
+
+  function registerPlayTap() {
+    setSponsoredGate((current) => {
+      if (!current || current.mode !== "PLAY" || current.completed || current.failed) {
+        return current;
+      }
+      const nextTaps = current.taps + 1;
+      return {
+        ...current,
+        taps: nextTaps,
+        completed: nextTaps >= SPONSORED_PLAY_TAPS,
+      };
+    });
+  }
+
+  async function completeSponsoredGate(quest: OrbitQuest) {
+    if (!sponsoredGate || sponsoredGate.questId !== quest.id) {
+      setError("Start verification first.");
+      return;
+    }
+    if (!sponsoredGate.completed || sponsoredGate.failed) {
+      setError("Task not fully completed. No Starbits awarded.");
+      return;
+    }
+
+    await progressQuest(quest);
+    setSponsoredGate(null);
+  }
 
   async function progressQuest(quest: OrbitQuest) {
     setActionKey(`progress:${quest.slug}`);
@@ -395,7 +497,13 @@ export function OrbitQuestsView() {
                     <Button
                       className="rounded-full"
                       disabled={completed || progressBusy || claimBusy}
-                      onClick={() => void progressQuest(quest)}
+                      onClick={() => {
+                        if (quest.category === "WATCH" || quest.category === "PLAY") {
+                          startSponsoredGate(quest);
+                          return;
+                        }
+                        void progressQuest(quest);
+                      }}
                       size="sm"
                       type="button"
                       variant="secondary"
@@ -422,6 +530,105 @@ export function OrbitQuestsView() {
                     </Button>
                   </div>
 
+                  {sponsoredGate?.questId === quest.id ? (
+                    <div className="space-y-3 rounded-xl border border-amber-300/30 bg-amber-500/10 p-3">
+                      <p className="text-xs font-medium uppercase tracking-[0.14em] text-amber-100">
+                        Verification required for rewards
+                      </p>
+                      {sponsoredGate.mode === "WATCH" ? (
+                        <>
+                          <video
+                            autoPlay
+                            className="h-40 w-full rounded-lg border border-white/15 bg-black/30 object-cover"
+                            controls={false}
+                            muted
+                            playsInline
+                            src={SPONSORED_DEMO_VIDEO_URL}
+                          />
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-white/15">
+                            <div
+                              className="h-full rounded-full bg-amber-300 transition-all"
+                              style={{
+                                width: `${Math.min(
+                                  100,
+                                  ((SPONSORED_WATCH_SECONDS - sponsoredGate.secondsLeft) /
+                                    SPONSORED_WATCH_SECONDS) *
+                                    100,
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                          <p className="text-xs text-amber-100">
+                            Watch until the timer completes. Remaining: {sponsoredGate.secondsLeft}s
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs text-amber-100">
+                            Complete the mini challenge: tap target {SPONSORED_PLAY_TAPS} times before
+                            time runs out.
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              className="rounded-full"
+                              disabled={
+                                sponsoredGate.completed ||
+                                sponsoredGate.failed ||
+                                sponsoredGate.secondsLeft <= 0
+                              }
+                              onClick={() => registerPlayTap()}
+                              size="sm"
+                              type="button"
+                              variant="secondary"
+                            >
+                              Tap target ({sponsoredGate.taps}/{SPONSORED_PLAY_TAPS})
+                            </Button>
+                            <span className="text-xs text-amber-100">
+                              Time left: {sponsoredGate.secondsLeft}s
+                            </span>
+                          </div>
+                        </>
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          className="rounded-full"
+                          disabled={!sponsoredGate.completed || sponsoredGate.failed || progressBusy}
+                          onClick={() => void completeSponsoredGate(quest)}
+                          size="sm"
+                          type="button"
+                        >
+                          Verify completion
+                        </Button>
+                        <Button
+                          className="rounded-full"
+                          onClick={() => setSponsoredGate(null)}
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          Cancel
+                        </Button>
+                        {quest.sponsor_url ? (
+                          <a
+                            className="text-xs text-amber-100 underline-offset-2 hover:underline"
+                            href={quest.sponsor_url}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            Open sponsor page
+                          </a>
+                        ) : null}
+                      </div>
+
+                      {sponsoredGate.failed ? (
+                        <p className="text-xs text-rose-200">
+                          Verification failed. Reward is blocked until full completion.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   {claimedAt ? (
                     <p className="text-[11px] text-zinc-500">Last claimed: {claimedAt}</p>
                   ) : null}
@@ -436,6 +643,13 @@ export function OrbitQuestsView() {
           ) : null}
         </div>
       )}
+
+      {activeSponsoredQuest ? (
+        <p className="rounded-lg border border-amber-300/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          Sponsored gate active: {activeSponsoredQuest.title}. Rewards unlock only after full
+          verification.
+        </p>
+      ) : null}
 
       {error ? (
         <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">

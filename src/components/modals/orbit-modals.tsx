@@ -1615,7 +1615,15 @@ export function OrbitModals({
                             <Button
                               className="rounded-full"
                               disabled={isCompleted || isProgressing || isClaiming}
-                              onClick={() => void progressQuest(quest)}
+                              onClick={() => {
+                                if (quest.category === "WATCH" || quest.category === "PLAY") {
+                                  setQuestError(
+                                    "Sponsored WATCH/PLAY missions require full verification in Orbit Missions view.",
+                                  );
+                                  return;
+                                }
+                                void progressQuest(quest);
+                              }}
                               size="sm"
                               type="button"
                               variant="secondary"

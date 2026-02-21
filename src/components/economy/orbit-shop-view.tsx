@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Gem, Search, Sparkles, Store, Wallet } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,10 +20,13 @@ type ShopTab = "FEATURED" | "BROWSE" | "STARBITS_EXCLUSIVES";
 
 export function OrbitShopView() {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
-  const { profile, setProfile } = useOrbitNavStore((state) => ({
-    profile: state.profile,
-    setProfile: state.setProfile,
-  }));
+  const localMode = !isSupabaseReady();
+  const { profile, setProfile } = useOrbitNavStore(
+    useShallow((state) => ({
+      profile: state.profile,
+      setProfile: state.setProfile,
+    })),
+  );
 
   const [tab, setTab] = useState<ShopTab>("FEATURED");
   const [query, setQuery] = useState("");
@@ -227,7 +231,7 @@ export function OrbitShopView() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 pb-1">
       <section className="overflow-hidden rounded-2xl border border-white/10 bg-black/25">
         <div className="relative overflow-hidden px-5 py-5">
           <div className="absolute inset-0 bg-[radial-gradient(120%_120%_at_10%_10%,rgba(217,70,239,0.38),transparent_48%),radial-gradient(140%_140%_at_84%_74%,rgba(56,189,248,0.25),transparent_55%),linear-gradient(140deg,#0c0d18_0%,#15103a_54%,#1b1030_100%)]" />
@@ -238,6 +242,11 @@ export function OrbitShopView() {
               <p className="mt-1 text-sm text-zinc-300">
                 Cosmetic bundles, premium backgrounds, and account flair drops.
               </p>
+              {localMode ? (
+                <p className="mt-2 inline-flex rounded-full border border-amber-300/35 bg-amber-500/10 px-2.5 py-1 text-[10px] uppercase tracking-wide text-amber-100">
+                  Local rewards mode
+                </p>
+              ) : null}
             </div>
             <div className="flex items-center gap-2">
               <span className="rounded-full border border-amber-300/35 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-100">
@@ -261,7 +270,7 @@ export function OrbitShopView() {
         </div>
       </section>
 
-      <section className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
+      <section className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 shadow-[0_12px_40px_rgba(0,0,0,0.25)]">
         <div className="flex items-center gap-2">
           <Button
             className="rounded-full"
@@ -320,7 +329,7 @@ export function OrbitShopView() {
           Loading Orbit Shop...
         </div>
       ) : (
-        <div className="grid min-h-0 flex-1 gap-3 overflow-auto md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto md:grid-cols-2 xl:grid-cols-3">
           {visibleItems.map((item) => {
             const owned = ownedSlugs.has(item.slug);
             const isBackground = item.category === "BACKGROUND";
@@ -332,7 +341,7 @@ export function OrbitShopView() {
 
             return (
               <article
-                className="overflow-hidden rounded-2xl border border-white/10 bg-black/30"
+                className="overflow-hidden rounded-2xl border border-white/10 bg-black/30 transition hover:border-violet-300/35 hover:shadow-[0_0_0_1px_rgba(167,139,250,0.2)]"
                 key={item.slug}
               >
                 <div

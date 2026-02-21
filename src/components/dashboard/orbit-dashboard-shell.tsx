@@ -38,7 +38,11 @@ import { useOrbitThemeEngine } from "@/src/hooks/use-orbit-theme-engine";
 import { useOrbitSocial } from "@/src/hooks/use-orbit-social";
 import { useOrbitWorkspace } from "@/src/hooks/use-orbit-workspace";
 import { ensureNotificationPermission } from "@/src/lib/orbit-notifications";
-import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
+import {
+  getOrbitSupabaseClient,
+  isSupabaseReady,
+  setForcedLocalMode,
+} from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 
 interface OrbitDashboardShellProps {
@@ -173,6 +177,20 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
 
     return { background: customBackground };
   }, [profile?.active_background_css]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const localParam = new URLSearchParams(window.location.search).get("local");
+    if (localParam === "1") {
+      setForcedLocalMode(true);
+      return;
+    }
+    if (localParam === "0") {
+      setForcedLocalMode(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isSupabaseReady()) {

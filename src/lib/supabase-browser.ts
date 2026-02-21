@@ -18,11 +18,9 @@ function resolveForceLocalModeFlag() {
     const params = new URLSearchParams(window.location.search);
     const localParam = params.get("local");
     if (localParam === "1") {
-      window.localStorage.setItem(LOCAL_MODE_STORAGE_KEY, "1");
       return true;
     }
     if (localParam === "0") {
-      window.localStorage.removeItem(LOCAL_MODE_STORAGE_KEY);
       return false;
     }
 
@@ -38,6 +36,21 @@ const hasSupabaseEnv = Boolean(
 );
 export function isSupabaseReady() {
   return hasSupabaseEnv && !resolveForceLocalModeFlag();
+}
+
+export function setForcedLocalMode(enabled: boolean) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    if (enabled) {
+      window.localStorage.setItem(LOCAL_MODE_STORAGE_KEY, "1");
+      return;
+    }
+    window.localStorage.removeItem(LOCAL_MODE_STORAGE_KEY);
+  } catch {
+    // Ignore storage persistence failures.
+  }
 }
 
 let cachedClient: SupabaseClient | null = null;
