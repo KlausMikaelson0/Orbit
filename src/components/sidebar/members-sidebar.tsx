@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Bot, MoreHorizontal, ShieldCheck, Users } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -38,8 +39,14 @@ function roleLabel(role: MemberRole) {
 
 export function MembersSidebar({ user, mobile = false }: MembersSidebarProps) {
   const [actionError, setActionError] = useState<string | null>(null);
-  const activeServerId = useOrbitNavStore((state) => state.activeServerId);
-  const { members, bot, loading, isAdmin, kickMember, banMember } = useOrbitMembers(
+  const { activeServerId, activeServerOwnerId } = useOrbitNavStore(
+    useShallow((state) => ({
+      activeServerId: state.activeServerId,
+      activeServerOwnerId:
+        state.servers.find((server) => server.id === state.activeServerId)?.owner_id ?? null,
+    })),
+  );
+  const { members, bot, loading, isAdmin, kickMember, banMember, updateMemberRole } = useOrbitMembers(
     user,
     activeServerId,
   );
@@ -64,6 +71,14 @@ export function MembersSidebar({ user, mobile = false }: MembersSidebarProps) {
   async function onBan(member: OrbitMemberWithProfile) {
     setActionError(null);
     const result = await banMember(member.member.id, member.member.profile_id);
+    if (result.error) {
+      setActionError(result.error);
+    }
+  }
+
+  async function onUpdateRole(member: OrbitMemberWithProfile, nextRole: MemberRole) {
+    setActionError(null);
+    const result = await updateMemberRole(member.member.id, nextRole);
     if (result.error) {
       setActionError(result.error);
     }
@@ -94,19 +109,23 @@ export function MembersSidebar({ user, mobile = false }: MembersSidebarProps) {
       <ScrollArea className="h-[calc(100%-5.5rem)]">
         {bot ? <OrbitBotRow name={bot.name} /> : null}
         <MemberSection
+          ownerId={activeServerOwnerId}
           isAdmin={isAdmin}
           label={`Online — ${onlineMembers.length}`}
           members={onlineMembers}
           onBan={onBan}
           onKick={onKick}
+          onUpdateRole={onUpdateRole}
           viewerId={user?.id ?? null}
         />
         <MemberSection
+          ownerId={activeServerOwnerId}
           isAdmin={isAdmin}
           label={`Offline — ${offlineMembers.length}`}
           members={offlineMembers}
           onBan={onBan}
           onKick={onKick}
+          onUpdateRole={onUpdateRole}
           viewerId={user?.id ?? null}
         />
 
@@ -149,18 +168,22 @@ interface MemberSectionProps {
   label: string;
   members: OrbitMemberWithProfile[];
   isAdmin: boolean;
+  ownerId: string | null;
   viewerId: string | null;
   onKick: (member: OrbitMemberWithProfile) => Promise<void>;
   onBan: (member: OrbitMemberWithProfile) => Promise<void>;
+  onUpdateRole: (member: OrbitMemberWithProfile, nextRole: MemberRole) => Promise<void>;
 }
 
 function MemberSection({
   label,
   members,
   isAdmin,
+  ownerId,
   viewerId,
   onKick,
   onBan,
+  onUpdateRole,
 }: MemberSectionProps) {
   if (!members.length) {
     return null;
@@ -175,7 +198,8 @@ function MemberSection({
         {members.map((row) => {
           const displayName =
             row.profile?.full_name ?? row.profile?.username ?? "Unknown Member";
-          const canManage = isAdmin && viewerId !== row.member.profile_id;
+          const isOwnerRow = ownerId === row.member.profile_id;
+          const canManage = isAdmin && !isOwnerRow && viewerId !== row.member.profile_id;
 
           return (
             <div
@@ -222,6 +246,22 @@ function MemberSection({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      {row.member.role !== "ADMIN" ? (
+                        <DropdownMenuItem onClick={() => void onUpdateRole(row, "ADMIN")}>
+                          Set as Admin
+                        </DropdownMenuItem>
+                      ) : null}
+                      {row.member.role !== "MODERATOR" ? (
+                        <DropdownMenuItem onClick={() => void onUpdateRole(row, "MODERATOR")}>
+                          Set as Moderator
+                        </DropdownMenuItem>
+                      ) : null}
+                      {row.member.role !== "GUEST" ? (
+                        <DropdownMenuItem onClick={() => void onUpdateRole(row, "GUEST")}>
+                          Set as Guest
+                        </DropdownMenuItem>
+                      ) : null}
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => void onKick(row)}>
                         Kick from server
                       </DropdownMenuItem>

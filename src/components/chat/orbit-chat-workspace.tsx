@@ -9,6 +9,7 @@ import {
   Phone,
   PhoneOff,
   RadioTower,
+  ShieldAlert,
   Sparkles,
   Video,
   X,
@@ -25,6 +26,7 @@ import { OrbitQuestsView } from "@/src/components/economy/orbit-quests-view";
 import { OrbitShopView } from "@/src/components/economy/orbit-shop-view";
 import { OrbitLabsView } from "@/src/components/labs/orbit-labs-view";
 import { useOrbitSocialContext } from "@/src/context/orbit-social-context";
+import { useOrbitChannelPermissions } from "@/src/hooks/use-orbit-channel-permissions";
 import { requestOrbitSummary } from "@/src/lib/orbit-bot";
 import { isSupabaseReady } from "@/src/lib/supabase-browser";
 import { DmHomeView } from "@/src/components/social/dm-home-view";
@@ -45,6 +47,12 @@ const EMPTY_MESSAGES: OrbitMessageView[] = [];
 export function OrbitChatWorkspace() {
   const isLocalMode = !isSupabaseReady();
   const hasLivekitUrl = Boolean(process.env.NEXT_PUBLIC_LIVEKIT_URL);
+  const {
+    canConnectChannel,
+    canManageServerRules,
+    canPostChannel,
+    canViewChannel,
+  } = useOrbitChannelPermissions();
   const {
     sendFriendRequest,
     acceptFriendRequest,
@@ -70,6 +78,8 @@ export function OrbitChatWorkspace() {
     activeCallSession,
     privacyMode,
     setActiveFriends,
+    setActiveChannel,
+    setActiveLabs,
   } = useOrbitNavStore(
     useShallow((state) => ({
       activeView: state.activeView,
@@ -84,6 +94,8 @@ export function OrbitChatWorkspace() {
       activeCallSession: state.activeCallSession,
       privacyMode: state.privacyMode,
       setActiveFriends: state.setActiveFriends,
+      setActiveChannel: state.setActiveChannel,
+      setActiveLabs: state.setActiveLabs,
     })),
   );
   const [summarizing, setSummarizing] = useState(false);
@@ -131,6 +143,14 @@ export function OrbitChatWorkspace() {
     () => recentMessages.find((message) => message.id === threadRootId) ?? null,
     [recentMessages, threadRootId],
   );
+  const firstViewableChannel = useMemo(
+    () => activeChannels.find((channel) => canViewChannel(channel)) ?? null,
+    [activeChannels, canViewChannel],
+  );
+  const canViewActiveChannel = activeChannel ? canViewChannel(activeChannel) : false;
+  const canPostActiveChannel = activeChannel ? canPostChannel(activeChannel) : false;
+  const canConnectActiveChannel = activeChannel ? canConnectChannel(activeChannel) : false;
+  const canManageServerRulesForActiveServer = canManageServerRules(activeServerId);
 
   useEffect(() => {
     setSummary(null);
@@ -139,6 +159,28 @@ export function OrbitChatWorkspace() {
     setChannelSurface("CHAT");
     setShowAnalytics(false);
   }, [activeChannelId, activeDmThreadId]);
+
+  useEffect(() => {
+    if (activeView !== "SERVER" || !activeServerId) {
+      return;
+    }
+
+    const fallback = firstViewableChannel;
+    if (!fallback) {
+      return;
+    }
+
+    if (!activeChannel || !canViewChannel(activeChannel)) {
+      setActiveChannel(fallback.id);
+    }
+  }, [
+    activeChannel,
+    activeServerId,
+    activeView,
+    canViewChannel,
+    firstViewableChannel,
+    setActiveChannel,
+  ]);
 
   async function summarizeChannel() {
     if (!recentMessages.length) {
@@ -301,6 +343,18 @@ export function OrbitChatWorkspace() {
                 Analytics
               </Button>
             ) : null}
+            {activeView === "SERVER" && canManageServerRulesForActiveServer ? (
+              <Button
+                className="rounded-full"
+                onClick={() => setActiveLabs()}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <ShieldAlert className="h-4 w-4" />
+                Rules & Roles
+              </Button>
+            ) : null}
           </div>
           <Button
             className="rounded-full"
@@ -443,8 +497,26 @@ export function OrbitChatWorkspace() {
             <p className="text-sm">Create a channel in this server.</p>
           </div>
         </div>
+      ) : !canViewActiveChannel ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-dashed border-amber-300/30 bg-amber-500/10 text-center text-amber-100">
+          <div className="max-w-lg px-5">
+            <p className="text-sm font-semibold">You do not have access to view this channel</p>
+            <p className="mt-2 text-sm text-amber-200/80">
+              Ask the server owner/admin to update role permissions for this channel.
+            </p>
+          </div>
+        </div>
       ) : activeChannel.type === "AUDIO" || activeChannel.type === "VIDEO" ? (
-        isLocalMode ? (
+        !canConnectActiveChannel ? (
+          <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-dashed border-amber-300/30 bg-amber-500/10 text-center text-amber-100">
+            <div className="max-w-lg px-5">
+              <p className="text-sm font-semibold">Voice access is restricted for your role</p>
+              <p className="mt-2 text-sm text-amber-200/80">
+                This {activeChannel.type.toLowerCase()} channel requires connect permission.
+              </p>
+            </div>
+          </div>
+        ) : isLocalMode ? (
           <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/20 text-center text-zinc-300">
             <div className="max-w-lg px-5">
               <p className="text-sm font-semibold text-zinc-100">
@@ -504,7 +576,13 @@ export function OrbitChatWorkspace() {
                 />
               </div>
             </div>
+            {!canPostActiveChannel ? (
+              <p className="mt-2 rounded-lg border border-amber-300/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                You can read this channel, but your role cannot send messages here.
+              </p>
+            ) : null}
             <ChatInput
+              canPost={canPostActiveChannel}
               conversationId={activeChannel.id}
               member={currentMember}
               mode="channel"
@@ -541,6 +619,7 @@ export function OrbitChatWorkspace() {
                   />
                 </div>
                 <ChatInput
+                  canPost={canPostActiveChannel}
                   conversationId={activeChannel.id}
                   member={currentMember}
                   mode="channel"

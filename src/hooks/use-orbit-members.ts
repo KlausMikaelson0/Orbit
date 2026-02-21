@@ -7,6 +7,7 @@ import { getOrbitLocalMembers } from "@/src/lib/orbit-local-data";
 import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type {
+  MemberRole,
   OrbitMember,
   OrbitMemberWithProfile,
   OrbitProfile,
@@ -271,6 +272,50 @@ export function useOrbitMembers(user: User | null, serverId: string | null) {
     [fetchMembers, serverId, supabase, user],
   );
 
+  const updateMemberRole = useCallback(
+    async (
+      targetMemberId: string,
+      nextRole: MemberRole,
+    ): Promise<MemberActionResult> => {
+      if (!serverId) {
+        return { error: "No active server selected." };
+      }
+
+      if (!isSupabaseReady()) {
+        const now = new Date().toISOString();
+        setMembers((current) =>
+          current.map((row) =>
+            row.member.id === targetMemberId
+              ? {
+                  ...row,
+                  member: {
+                    ...row.member,
+                    role: nextRole,
+                    updated_at: now,
+                  },
+                }
+              : row,
+          ),
+        );
+        return {};
+      }
+
+      const { error } = await supabase
+        .from("members")
+        .update({ role: nextRole })
+        .eq("id", targetMemberId)
+        .eq("server_id", serverId);
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      await fetchMembers();
+      return {};
+    },
+    [fetchMembers, serverId, supabase],
+  );
+
   return {
     loading,
     members: membersWithStatus,
@@ -279,5 +324,6 @@ export function useOrbitMembers(user: User | null, serverId: string | null) {
     currentMember,
     kickMember,
     banMember,
+    updateMemberRole,
   };
 }

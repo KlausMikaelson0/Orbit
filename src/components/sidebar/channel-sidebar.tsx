@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
 import {
   FileText,
   FlaskConical,
@@ -8,6 +9,7 @@ import {
   Mic,
   Plus,
   ScrollText,
+  Shield,
   ShoppingBag,
   Users,
   Video,
@@ -16,6 +18,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useOrbitChannelPermissions } from "@/src/hooks/use-orbit-channel-permissions";
 import { useModal } from "@/src/hooks/use-modal";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { ChannelType } from "@/src/types/orbit";
@@ -41,6 +44,7 @@ interface ChannelSidebarProps {
 
 export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarProps) {
   const { onOpen } = useModal();
+  const { canViewChannel, canManageServerRules } = useOrbitChannelPermissions();
   const {
     activeView,
     servers,
@@ -77,6 +81,10 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
 
   const activeServer = servers.find((server) => server.id === activeServerId) ?? null;
   const channels = activeServerId ? channelsByServer[activeServerId] ?? [] : [];
+  const visibleChannels = useMemo(
+    () => channels.filter((channel) => canViewChannel(channel)),
+    [canViewChannel, channels],
+  );
   const isServerView = activeView === "SERVER";
   const isHomeView =
     activeView === "DM_HOME" ||
@@ -85,6 +93,22 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
     activeView === "SHOP" ||
     activeView === "QUESTS" ||
     activeView === "LABS";
+
+  useEffect(() => {
+    if (!isServerView || !activeServerId) {
+      return;
+    }
+    const fallback = visibleChannels[0] ?? null;
+    if (!fallback) {
+      return;
+    }
+    const hasActiveVisibleChannel = Boolean(
+      activeChannelId && visibleChannels.some((channel) => channel.id === activeChannelId),
+    );
+    if (!hasActiveVisibleChannel) {
+      setActiveChannel(fallback.id);
+    }
+  }, [activeChannelId, activeServerId, isServerView, setActiveChannel, visibleChannels]);
 
   return (
     <aside
@@ -110,19 +134,35 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
           {isServerView ? "Channels" : "Direct Messages"}
         </p>
         {isServerView ? (
-          <Button
-            className="h-7 w-7 rounded-full"
-            disabled={!activeServerId}
-            onClick={() => {
-              onOpen("createChannel", { serverId: activeServerId ?? undefined });
-              onNavigate?.();
-            }}
-            size="icon"
-            variant="ghost"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span className="sr-only">Create channel</span>
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              className="h-7 w-7 rounded-full"
+              disabled={!activeServerId}
+              onClick={() => {
+                onOpen("createChannel", { serverId: activeServerId ?? undefined });
+                onNavigate?.();
+              }}
+              size="icon"
+              variant="ghost"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span className="sr-only">Create channel</span>
+            </Button>
+            {canManageServerRules(activeServerId) ? (
+              <Button
+                className="h-7 rounded-full px-2"
+                onClick={() => {
+                  setActiveLabs();
+                  onNavigate?.();
+                }}
+                size="sm"
+                variant="ghost"
+              >
+                <Shield className="h-3.5 w-3.5" />
+                Rules
+              </Button>
+            ) : null}
+          </div>
         ) : (
           <div className="flex items-center gap-1">
             <Button
@@ -180,7 +220,7 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
       <ScrollArea className="h-[calc(100%-7.5rem)]">
         <div className="space-y-1">
           {isServerView
-            ? channels.map((channel) => {
+            ? visibleChannels.map((channel) => {
                 const Icon = channelTypeIcon[channel.type];
                 const active = channel.id === activeChannelId;
 
@@ -253,6 +293,11 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
           {isServerView && activeServer && channels.length === 0 ? (
             <div className="rounded-xl border border-dashed border-white/10 p-3 text-xs text-zinc-500">
               No channels yet. Create one to start messaging.
+            </div>
+          ) : null}
+          {isServerView && activeServer && channels.length > 0 && visibleChannels.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-amber-300/25 bg-amber-500/10 p-3 text-xs text-amber-100">
+              You do not have permission to view channels in this server.
             </div>
           ) : null}
 

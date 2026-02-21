@@ -333,12 +333,12 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
       activeDmThreadId: null,
     }),
   setActiveLabs: () =>
-    set({
+    set((state) => ({
       activeView: "LABS",
-      activeServerId: null,
-      activeChannelId: null,
+      activeServerId: state.activeServerId,
+      activeChannelId: state.activeChannelId,
       activeDmThreadId: null,
-    }),
+    })),
   setActiveDmThread: (threadId) =>
     set({
       activeView: threadId ? "DM_THREAD" : "DM_HOME",

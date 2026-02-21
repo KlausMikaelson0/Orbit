@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
+import { useOrbitChannelPermissions } from "@/src/hooks/use-orbit-channel-permissions";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { OrbitProfile } from "@/src/types/orbit";
 
@@ -29,6 +30,7 @@ export function OrbitCommandPalette({
   const [open, setOpen] = useState(false);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const { canViewChannel } = useOrbitChannelPermissions();
   const {
     servers,
     channelsByServer,
@@ -88,12 +90,14 @@ export function OrbitCommandPalette({
   const indexedChannels = useMemo(
     () =>
       servers.flatMap((server) =>
-        (channelsByServer[server.id] ?? []).map((channel) => ({
-          server,
-          channel,
-        })),
+        (channelsByServer[server.id] ?? [])
+          .filter((channel) => canViewChannel(channel))
+          .map((channel) => ({
+            server,
+            channel,
+          })),
       ),
-    [channelsByServer, servers],
+    [canViewChannel, channelsByServer, servers],
   );
 
   return (

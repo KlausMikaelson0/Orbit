@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarVisualizer,
   GridLayout,
@@ -11,11 +11,17 @@ import {
   useRoomContext,
   useTracks,
 } from "@livekit/components-react";
-import { Track } from "livekit-client";
+import { ConnectionState, RoomEvent, type RemoteParticipant, Track } from "livekit-client";
 import { Loader2, Mic, MicOff, PhoneOff, Video, VideoOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { buildLivekitRoomName } from "@/lib/utils";
+import {
+  playOrbitCallJoinSound,
+  playOrbitCallLeaveSound,
+  playOrbitParticipantJoinSound,
+  playOrbitParticipantLeaveSound,
+} from "@/src/lib/orbit-notifications";
 import type { ChannelType } from "@/src/types/orbit";
 
 interface LivekitChannelRoomProps {
@@ -139,6 +145,7 @@ export function LivekitChannelRoom({
         token={token}
         video={isVideoChannel}
       >
+        <LivekitCallSoundEvents />
         <RoomAudioRenderer />
         <div className="h-full p-4">
           {isVideoChannel ? <VideoGrid /> : <AudioVisualizerGrid />}
@@ -150,6 +157,66 @@ export function LivekitChannelRoom({
       </LiveKitRoom>
     </div>
   );
+}
+
+function LivekitCallSoundEvents() {
+  const room = useRoomContext();
+  const remoteParticipantsRef = useRef<Set<string>>(new Set());
+  const joinedRef = useRef(false);
+
+  useEffect(() => {
+    const markConnected = () => {
+      if (!joinedRef.current) {
+        playOrbitCallJoinSound();
+      }
+      joinedRef.current = true;
+      remoteParticipantsRef.current = new Set(Array.from(room.remoteParticipants.keys()));
+    };
+
+    const markDisconnected = () => {
+      if (joinedRef.current) {
+        playOrbitCallLeaveSound();
+      }
+      joinedRef.current = false;
+      remoteParticipantsRef.current = new Set();
+    };
+
+    const onParticipantConnected = (participant: RemoteParticipant) => {
+      if (remoteParticipantsRef.current.has(participant.identity)) {
+        return;
+      }
+      remoteParticipantsRef.current.add(participant.identity);
+      playOrbitParticipantJoinSound();
+    };
+
+    const onParticipantDisconnected = (participant: RemoteParticipant) => {
+      if (!remoteParticipantsRef.current.has(participant.identity)) {
+        return;
+      }
+      remoteParticipantsRef.current.delete(participant.identity);
+      playOrbitParticipantLeaveSound();
+    };
+
+    room.on(RoomEvent.Connected, markConnected);
+    room.on(RoomEvent.Disconnected, markDisconnected);
+    room.on(RoomEvent.ParticipantConnected, onParticipantConnected);
+    room.on(RoomEvent.ParticipantDisconnected, onParticipantDisconnected);
+
+    if (room.state === ConnectionState.Connected) {
+      markConnected();
+    } else {
+      remoteParticipantsRef.current = new Set(Array.from(room.remoteParticipants.keys()));
+    }
+
+    return () => {
+      room.off(RoomEvent.Connected, markConnected);
+      room.off(RoomEvent.Disconnected, markDisconnected);
+      room.off(RoomEvent.ParticipantConnected, onParticipantConnected);
+      room.off(RoomEvent.ParticipantDisconnected, onParticipantDisconnected);
+    };
+  }, [room]);
+
+  return null;
 }
 
 function VideoGrid() {

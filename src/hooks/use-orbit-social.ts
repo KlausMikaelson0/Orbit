@@ -451,16 +451,19 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
         }
         setOutgoingCall(null);
         setCallNotice(null);
-        setActiveCallSession({
-          call_id: data.callId,
-          peer_profile_id: data.recipientId,
-          peer_name: data.recipientName || "Orbit User",
-          peer_avatar_url: data.recipientAvatarUrl ?? null,
-          mode: data.mode,
-          room_id: data.roomId,
-          thread_id: data.threadId,
-          joined_at: new Date().toISOString(),
-        });
+        const currentSession = useOrbitNavStore.getState().activeCallSession;
+        if (!currentSession || currentSession.call_id !== data.callId) {
+          setActiveCallSession({
+            call_id: data.callId,
+            peer_profile_id: data.recipientId,
+            peer_name: data.recipientName || "Orbit User",
+            peer_avatar_url: data.recipientAvatarUrl ?? null,
+            mode: data.mode,
+            room_id: data.roomId,
+            thread_id: data.threadId,
+            joined_at: new Date().toISOString(),
+          });
+        }
       })
       .on("broadcast", { event: "call-declined" }, ({ payload }) => {
         const data = payload as OrbitCallDecisionPayload;
@@ -468,6 +471,10 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
           return;
         }
         setOutgoingCall(null);
+        const active = useOrbitNavStore.getState().activeCallSession;
+        if (active?.call_id === data.callId) {
+          clearActiveCallSession();
+        }
         setCallNotice(`${data.recipientName || "Recipient"} declined your call.`);
       })
       .on("broadcast", { event: "call-ended" }, ({ payload }) => {
@@ -480,6 +487,10 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
         if (active?.call_id === data.callId) {
           clearActiveCallSession();
           setCallNotice("Call ended.");
+        }
+        const incoming = useOrbitNavStore.getState().incomingCall;
+        if (incoming?.call_id === data.callId) {
+          clearIncomingCall();
         }
         setOutgoingCall((current) => (current?.callId === data.callId ? null : current));
       })
@@ -843,14 +854,32 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
       };
       setCallNotice(`Calling ${targetProfile.full_name ?? targetProfile.username ?? "Orbit User"}...`);
       setOutgoingCall(startedPayload);
+      setActiveCallSession({
+        call_id: callId,
+        peer_profile_id: targetProfile.id,
+        peer_name: targetProfile.full_name ?? targetProfile.username ?? "Orbit User",
+        peer_avatar_url: targetProfile.avatar_url ?? null,
+        mode: options.mode,
+        room_id: roomId,
+        thread_id: options.threadId,
+        joined_at: new Date().toISOString(),
+      });
 
       const result = await sendCallSignal("call-started", startedPayload);
       if (result.error) {
         setOutgoingCall(null);
+        clearActiveCallSession();
       }
       return result;
     },
-    [hasLivekitUrl, profile, sendCallSignal, user],
+    [
+      clearActiveCallSession,
+      hasLivekitUrl,
+      profile,
+      sendCallSignal,
+      setActiveCallSession,
+      user,
+    ],
   );
 
   const acceptIncomingCall = useCallback(async (): Promise<OrbitSocialResult> => {
@@ -951,13 +980,17 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
     const callId = outgoingCall.callId;
     setOutgoingCall(null);
     setCallNotice(null);
+    const active = useOrbitNavStore.getState().activeCallSession;
+    if (active?.call_id === callId) {
+      clearActiveCallSession();
+    }
 
     return sendCallSignal("call-cancelled", {
       callId,
       callerId: outgoingCall.callerId,
       recipientId: outgoingCall.recipientId,
     });
-  }, [outgoingCall, sendCallSignal]);
+  }, [clearActiveCallSession, outgoingCall, sendCallSignal]);
 
   const clearCallNotice = useCallback(() => {
     setCallNotice(null);

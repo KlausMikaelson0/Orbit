@@ -33,6 +33,7 @@ interface ChatInputProps {
   member: OrbitMember | null;
   profile: OrbitProfile | null;
   threadParentId?: string | null;
+  canPost?: boolean;
 }
 
 const EMPTY_CACHED_MESSAGES: OrbitMessageView[] = [];
@@ -43,6 +44,7 @@ export function ChatInput({
   member,
   profile,
   threadParentId = null,
+  canPost = true,
 }: ChatInputProps) {
   const RATE_WINDOW_MS = 10_000;
   const RATE_LIMIT_COUNT = 8;
@@ -339,6 +341,10 @@ export function ChatInput({
     if (mode === "channel" && !member) {
       return;
     }
+    if (mode === "channel" && !canPost) {
+      setError("Your role cannot send messages in this channel.");
+      return;
+    }
     if (!consumeClientRateLimit()) {
       return;
     }
@@ -376,6 +382,10 @@ export function ChatInput({
     }
 
     if (mode === "channel" && !member) {
+      return;
+    }
+    if (mode === "channel" && !canPost) {
+      setError("Your role cannot send messages in this channel.");
       return;
     }
 
@@ -581,6 +591,7 @@ export function ChatInput({
     !conversationId ||
     !profile ||
     (isSupabaseReady() && mode === "channel" && !member) ||
+    (mode === "channel" && !canPost) ||
     sending;
 
   return (
@@ -672,6 +683,8 @@ export function ChatInput({
             conversationId
               ? threadParentId
                 ? "Reply to thread..."
+                : mode === "channel" && !canPost
+                  ? "Read-only channel (no send permission)"
                 : "Transmit a message..."
               : "Select a channel or DM to begin"
           }
@@ -697,6 +710,11 @@ export function ChatInput({
       {mode === "channel" && !threadParentId ? (
         <p className="mt-1 text-[11px] text-zinc-500">
           Orbit-Bot commands: /summarize · /clear 20 · /poll Question | Option A | Option B
+        </p>
+      ) : null}
+      {mode === "channel" && !canPost ? (
+        <p className="mt-1 text-[11px] text-amber-200">
+          Channel is read-only for your current role.
         </p>
       ) : null}
 
