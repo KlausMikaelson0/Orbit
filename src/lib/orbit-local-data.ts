@@ -9,6 +9,7 @@ import type {
   OrbitQuest,
   OrbitQuestProgress,
   OrbitRelationship,
+  OrbitServerMediaAsset,
   OrbitServer,
   OrbitServerMembership,
   OrbitStoreItem,
@@ -147,6 +148,61 @@ const LOCAL_DM_THREAD = {
   created_at: TS,
   updated_at: TS,
 };
+
+const LOCAL_SERVER_MEDIA_ASSETS: OrbitServerMediaAsset[] = [
+  {
+    id: "local-media-hq-gif-1",
+    server_id: "local-server-hq",
+    kind: "GIF",
+    title: "HQ Glow",
+    media_url: "https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif",
+    preview_url: "https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif",
+    created_by: ORBIT_LOCAL_PROFILE.id,
+    usage_count: 0,
+    is_active: true,
+    created_at: TS,
+    updated_at: TS,
+  },
+  {
+    id: "local-media-hq-sticker-1",
+    server_id: "local-server-hq",
+    kind: "STICKER",
+    title: "HQ Shield",
+    media_url: "/stickers/orbit-shield.svg",
+    preview_url: "/stickers/orbit-shield.svg",
+    created_by: ORBIT_LOCAL_PROFILE.id,
+    usage_count: 0,
+    is_active: true,
+    created_at: TS,
+    updated_at: TS,
+  },
+  {
+    id: "local-media-creators-gif-1",
+    server_id: "local-server-creators",
+    kind: "GIF",
+    title: "Creator Hype",
+    media_url: "https://media.giphy.com/media/OkJat1YNdoD3W/giphy.gif",
+    preview_url: "https://media.giphy.com/media/OkJat1YNdoD3W/giphy.gif",
+    created_by: ORBIT_LOCAL_PROFILE.id,
+    usage_count: 0,
+    is_active: true,
+    created_at: TS,
+    updated_at: TS,
+  },
+  {
+    id: "local-media-creators-sticker-1",
+    server_id: "local-server-creators",
+    kind: "STICKER",
+    title: "Creator Rocket",
+    media_url: "/stickers/orbit-rocket.svg",
+    preview_url: "/stickers/orbit-rocket.svg",
+    created_by: ORBIT_LOCAL_PROFILE.id,
+    usage_count: 0,
+    is_active: true,
+    created_at: TS,
+    updated_at: TS,
+  },
+];
 
 function channelMessage(
   id: string,
@@ -381,6 +437,12 @@ export function getOrbitLocalMembers(serverId: string): OrbitMemberWithProfile[]
   }
 
   return [];
+}
+
+export function getOrbitLocalServerMediaAssets(serverId: string): OrbitServerMediaAsset[] {
+  return LOCAL_SERVER_MEDIA_ASSETS.filter(
+    (item) => item.server_id === serverId && item.is_active,
+  );
 }
 
 export function getOrbitLocalStoreItems(): OrbitStoreItem[] {

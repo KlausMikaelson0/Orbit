@@ -34,6 +34,8 @@ interface ChatInputProps {
   profile: OrbitProfile | null;
   threadParentId?: string | null;
   canPost?: boolean;
+  serverId?: string | null;
+  canManageCustomMedia?: boolean;
 }
 
 const EMPTY_CACHED_MESSAGES: OrbitMessageView[] = [];
@@ -45,6 +47,8 @@ export function ChatInput({
   profile,
   threadParentId = null,
   canPost = true,
+  serverId = null,
+  canManageCustomMedia = false,
 }: ChatInputProps) {
   const RATE_WINDOW_MS = 10_000;
   const RATE_LIMIT_COUNT = 8;
@@ -359,8 +363,8 @@ export function ChatInput({
         resolvedFileUrl: gif.url,
         optimisticFileUrl: gif.preview_url ?? gif.url,
         attachmentMeta: {
-          name: `${(gif.title || "Orbit GIF").slice(0, 48)}.gif`,
-          mimeType: "image/gif",
+          name: `${(gif.title || "Orbit Media").slice(0, 48)}.${resolveGifExtension(gif)}`,
+          mimeType: resolveGifMimeType(gif),
         },
       });
       setGifPickerOpen(false);
@@ -373,6 +377,33 @@ export function ChatInput({
 
   function appendEmoji(emoji: string) {
     setContent((current) => `${current}${emoji}`);
+  }
+
+  function resolveGifMimeType(gif: OrbitGifResult) {
+    if (gif.mime_type) {
+      return gif.mime_type;
+    }
+    if (gif.kind === "STICKER") {
+      if (/\.svg(\?|$)/i.test(gif.url)) {
+        return "image/svg+xml";
+      }
+      if (/\.png(\?|$)/i.test(gif.url)) {
+        return "image/png";
+      }
+      if (/\.webp(\?|$)/i.test(gif.url)) {
+        return "image/webp";
+      }
+      return "image/webp";
+    }
+    return "image/gif";
+  }
+
+  function resolveGifExtension(gif: OrbitGifResult) {
+    const mimeType = resolveGifMimeType(gif);
+    if (mimeType === "image/svg+xml") return "svg";
+    if (mimeType === "image/png") return "png";
+    if (mimeType === "image/webp") return "webp";
+    return "gif";
   }
 
   async function submitMessage(event: FormEvent<HTMLFormElement>) {
@@ -724,9 +755,11 @@ export function ChatInput({
         open={emojiPickerOpen}
       />
       <OrbitGifPicker
+        canManageCustomMedia={canManageCustomMedia}
         onOpenChange={setGifPickerOpen}
         onSelectGif={sendGifMessage}
         open={gifPickerOpen}
+        serverId={serverId}
       />
     </form>
   );

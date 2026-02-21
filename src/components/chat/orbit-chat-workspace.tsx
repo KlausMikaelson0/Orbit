@@ -480,10 +480,12 @@ export function OrbitChatWorkspace() {
             </div>
           </div>
           <ChatInput
+            canManageCustomMedia={false}
             conversationId={activeDmConversation?.thread.id ?? null}
             member={null}
             mode="dm"
             profile={profile}
+            serverId={null}
           />
         </>
       ) : !activeServer ? (
@@ -585,11 +587,13 @@ export function OrbitChatWorkspace() {
               </p>
             ) : null}
             <ChatInput
+              canManageCustomMedia={canManageServerRulesForActiveServer}
               canPost={canPostActiveChannel}
               conversationId={activeChannel.id}
               member={currentMember}
               mode="channel"
               profile={profile}
+              serverId={activeServer.id}
             />
 
             {threadRootId && threadRootMessage ? (
@@ -622,11 +626,13 @@ export function OrbitChatWorkspace() {
                   />
                 </div>
                 <ChatInput
+                  canManageCustomMedia={canManageServerRulesForActiveServer}
                   canPost={canPostActiveChannel}
                   conversationId={activeChannel.id}
                   member={currentMember}
                   mode="channel"
                   profile={profile}
+                  serverId={activeServer.id}
                   threadParentId={threadRootId}
                 />
               </div>

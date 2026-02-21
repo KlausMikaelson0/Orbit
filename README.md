@@ -183,6 +183,7 @@ Run migrations in order from `supabase/migrations/`:
 7. `20260220_orbit_phase8_quests.sql`
 8. `20260220_orbit_phase9_supercharge.sql`
 9. `20260221_orbit_phase10_creator_payouts.sql`
+10. `20260222_orbit_phase11_media_assets.sql`
 
 Phase 5 adds:
 - `orbit_bots` (per-server bot metadata)
@@ -216,6 +217,11 @@ Phase 10 adds:
 - `creator_payout_accounts` and `creator_payout_requests`
 - RPCs: `orbit_upsert_payout_account`, `orbit_request_payout`, `orbit_cancel_payout_request`
 - Creator withdrawal workflow with wallet-safe debit/refund ledger events
+
+Phase 11 adds:
+- `server_media_assets` (server-owned custom GIF and sticker library)
+- RLS policies so only server members can view and only server staff can manage
+- Orbit official sticker pack in `public/stickers/*`
 
 Also make sure Supabase Auth providers include:
 - Email/Password
@@ -326,6 +332,7 @@ This runs lint/build before `vercel --prod`.
 - [ ] All migrations applied through Phase 8
 - [ ] All migrations applied through Phase 9
 - [ ] All migrations applied through Phase 10
+- [ ] All migrations applied through Phase 11
 - [ ] Supabase Auth providers configured (Email/Password + Google + MFA)
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` added in Vercel
 - [ ] LiveKit keys configured and `/api/livekit/token` verified
