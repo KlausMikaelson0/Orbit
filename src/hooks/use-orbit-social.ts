@@ -100,6 +100,7 @@ interface OrbitCallDecisionPayload {
 
 export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
+  const hasLivekitUrl = Boolean(process.env.NEXT_PUBLIC_LIVEKIT_URL);
   const profile = useOrbitNavStore((state) => state.profile);
   const incomingCall = useOrbitNavStore((state) => state.incomingCall);
   const activeCallSession = useOrbitNavStore((state) => state.activeCallSession);
@@ -118,7 +119,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
   const callSignalChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchRelationships = useCallback(async () => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       const localRows = useOrbitNavStore.getState().relationships;
       if (!localRows.length) {
         setRelationships(getOrbitLocalRelationships());
@@ -168,7 +169,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
   }, [setRelationships, supabase, user]);
 
   const fetchDmConversations = useCallback(async () => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       const localRows = useOrbitNavStore.getState().dmConversations;
       if (!localRows.length) {
         setDmConversations(getOrbitLocalDmConversations());
@@ -263,7 +264,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
   }, [setDmConversations, supabase, user]);
 
   useEffect(() => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       setRelationships(getOrbitLocalRelationships());
       setDmConversations(getOrbitLocalDmConversations());
       setOnlineProfileIds(getOrbitLocalOnlineIds());
@@ -284,7 +285,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
   ]);
 
   useEffect(() => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       return;
     }
     if (!user) {
@@ -380,7 +381,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
   );
 
   useEffect(() => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       clearIncomingCall();
       clearActiveCallSession();
       callSignalChannelRef.current = null;
@@ -500,7 +501,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
   ]);
 
   useEffect(() => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       setOnlineProfileIds(getOrbitLocalOnlineIds());
       return;
     }
@@ -551,7 +552,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
 
   const sendFriendRequest = useCallback(
     async (identifier: string): Promise<OrbitSocialResult> => {
-      if (!isSupabaseReady) {
+      if (!isSupabaseReady()) {
         const parsed = identifier.trim().match(/^([a-zA-Z0-9_]{2,32})#(\d{4})$/);
         if (!parsed) {
           return { error: "Use the format username#1234" };
@@ -655,7 +656,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
 
   const acceptFriendRequest = useCallback(
     async (relationshipId: string): Promise<OrbitSocialResult> => {
-      if (!isSupabaseReady) {
+      if (!isSupabaseReady()) {
         const state = useOrbitNavStore.getState();
         setRelationships(
           state.relationships.map((relationship) =>
@@ -693,7 +694,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
 
   const declineFriendRequest = useCallback(
     async (relationshipId: string): Promise<OrbitSocialResult> => {
-      if (!isSupabaseReady) {
+      if (!isSupabaseReady()) {
         const state = useOrbitNavStore.getState();
         setRelationships(
           state.relationships.filter((relationship) => relationship.id !== relationshipId),
@@ -723,7 +724,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
 
   const openOrCreateDmWithProfile = useCallback(
     async (targetProfile: OrbitProfile): Promise<OrbitSocialResult<OrbitDmConversation>> => {
-      if (!isSupabaseReady) {
+      if (!isSupabaseReady()) {
         const currentState = useOrbitNavStore.getState();
         const existing = currentState.dmConversations.find(
           (conversation) => conversation.otherProfile.id === targetProfile.id,
@@ -806,7 +807,14 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
       targetProfile: OrbitProfile,
       options: { threadId: string | null; mode: "AUDIO" | "VIDEO" },
     ): Promise<OrbitSocialResult> => {
-      if (!isSupabaseReady) {
+      if (!hasLivekitUrl) {
+        setCallNotice(
+          "Voice/video calls require NEXT_PUBLIC_LIVEKIT_URL plus server-side LiveKit credentials.",
+        );
+        return { error: "LiveKit URL is not configured." };
+      }
+
+      if (!isSupabaseReady()) {
         setCallNotice(
           "Voice/video calls need LiveKit + Supabase in cloud mode. Messaging stays available in browser mode.",
         );
@@ -842,11 +850,11 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
       }
       return result;
     },
-    [profile, sendCallSignal, user],
+    [hasLivekitUrl, profile, sendCallSignal, user],
   );
 
   const acceptIncomingCall = useCallback(async (): Promise<OrbitSocialResult> => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       return { error: "Cloud call services are not configured." };
     }
     if (!user || !profile || !incomingCall) {
@@ -888,7 +896,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
   ]);
 
   const declineIncomingCall = useCallback(async (): Promise<OrbitSocialResult> => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       return { error: "Cloud call services are not configured." };
     }
     if (!user || !profile || !incomingCall) {
@@ -913,7 +921,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
   }, [clearIncomingCall, incomingCall, profile, sendCallSignal, user]);
 
   const endActiveCall = useCallback(async (): Promise<OrbitSocialResult> => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       return { error: "Cloud call services are not configured." };
     }
     if (!activeCallSession || !user) {
@@ -933,7 +941,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
   }, [activeCallSession, clearActiveCallSession, sendCallSignal, user]);
 
   const cancelOutgoingCall = useCallback(async (): Promise<OrbitSocialResult> => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       return { error: "Cloud call services are not configured." };
     }
     if (!outgoingCall) {

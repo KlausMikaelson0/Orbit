@@ -85,7 +85,7 @@ export function NeuralHubPage() {
               <Link href="/auth">Orbit Auth</Link>
             </Button>
             <Button asChild className="rounded-full px-4">
-              <Link href="/dashboard">
+              <Link href="/dashboard?local=1">
                 Launch Orbit
                 <ArrowRight className="h-4 w-4" />
               </Link>
@@ -123,7 +123,7 @@ export function NeuralHubPage() {
             </motion.p>
             <motion.div className="flex flex-wrap items-center gap-3" variants={reveal}>
               <Button asChild className="rounded-full px-6 py-6 text-base">
-                <Link href="/dashboard">
+                <Link href="/dashboard?local=1">
                   Enter Unified Spaces
                   <ArrowRight className="h-4 w-4" />
                 </Link>

@@ -127,7 +127,7 @@ export function useOrbitWorkspace(user: User | null) {
   ]);
 
   const ensureProfile = useCallback(async () => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       bootstrapLocalState();
       return;
     }
@@ -167,7 +167,7 @@ export function useOrbitWorkspace(user: User | null) {
   }, [bootstrapLocalState, setProfile, supabase, user]);
 
   const fetchServers = useCallback(async () => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       bootstrapLocalState();
       setLoadingServers(false);
       return;
@@ -238,7 +238,7 @@ export function useOrbitWorkspace(user: User | null) {
         return;
       }
 
-      if (!isSupabaseReady) {
+      if (!isSupabaseReady()) {
         setLoadingChannels(true);
         setChannels(serverId, getOrbitLocalChannels(serverId));
         setLoadingChannels(false);
@@ -264,7 +264,7 @@ export function useOrbitWorkspace(user: User | null) {
   }, [ensureProfile, fetchServers]);
 
   useEffect(() => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       return;
     }
     if (!user) {
@@ -306,7 +306,7 @@ export function useOrbitWorkspace(user: User | null) {
   }, [activeServerId, fetchChannels, setActiveChannel]);
 
   useEffect(() => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       return;
     }
     if (!activeServerId) {
@@ -338,7 +338,7 @@ export function useOrbitWorkspace(user: User | null) {
       imageUrl?: string;
       templateKey?: OrbitServerTemplateKey | null;
     }) => {
-      if (!isSupabaseReady) {
+      if (!isSupabaseReady()) {
         const trimmedName = values.name.trim();
         if (!trimmedName) {
           return { error: "Server name is required." } satisfies WorkspaceActionResult;
@@ -476,7 +476,7 @@ export function useOrbitWorkspace(user: User | null) {
       name: string;
       type: ChannelType;
     }) => {
-      if (!isSupabaseReady) {
+      if (!isSupabaseReady()) {
         const trimmedName = values.name.trim();
         if (!trimmedName) {
           return { error: "Channel name is required." } satisfies WorkspaceActionResult;
@@ -527,7 +527,7 @@ export function useOrbitWorkspace(user: User | null) {
 
   const joinServerByInvite = useCallback(
     async (inviteCode: string) => {
-      if (!isSupabaseReady) {
+      if (!isSupabaseReady()) {
         const normalizedCode = inviteCode.trim().toUpperCase();
         if (!normalizedCode) {
           return { error: "Invite code is required." } satisfies WorkspaceActionResult;

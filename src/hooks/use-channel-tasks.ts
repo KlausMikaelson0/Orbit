@@ -62,7 +62,7 @@ export function useChannelTasks(channelId: string | null, profileId: string | nu
       return;
     }
 
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       setLoadingTasks(true);
       setTaskError(null);
       setTasks(LOCAL_TASK_STORE.get(channelId) ?? []);
@@ -96,7 +96,7 @@ export function useChannelTasks(channelId: string | null, profileId: string | nu
   }, [fetchTasks]);
 
   useEffect(() => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       return;
     }
     if (!channelId) {
@@ -132,7 +132,7 @@ export function useChannelTasks(channelId: string | null, profileId: string | nu
         return { error: "Task content is required." };
       }
 
-      if (!isSupabaseReady) {
+      if (!isSupabaseReady()) {
         const now = new Date().toISOString();
         const task: OrbitChannelTask = {
           id: `local-task-${crypto.randomUUID().slice(0, 8)}`,
@@ -204,7 +204,7 @@ export function useChannelTasks(channelId: string | null, profileId: string | nu
       const completedAt = status === "DONE" ? new Date().toISOString() : null;
       setTaskError(null);
 
-      if (!isSupabaseReady) {
+      if (!isSupabaseReady()) {
         if (!channelId) {
           return { error: "Channel context is missing." };
         }
@@ -256,7 +256,7 @@ export function useChannelTasks(channelId: string | null, profileId: string | nu
 
   const removeTask = useCallback(
     async (taskId: string): Promise<ChannelTaskResult> => {
-      if (!isSupabaseReady) {
+      if (!isSupabaseReady()) {
         if (!channelId) {
           return { error: "Channel context is missing." };
         }

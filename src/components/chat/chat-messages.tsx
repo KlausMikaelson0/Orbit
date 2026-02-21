@@ -216,7 +216,7 @@ export function ChatMessages({
   );
 
   useEffect(() => {
-    if (!isSupabaseReady || !conversationId || useCacheOnly) {
+    if (!isSupabaseReady() || !conversationId || useCacheOnly) {
       return;
     }
 
@@ -224,7 +224,7 @@ export function ChatMessages({
   }, [conversationId, fetchMessages, useCacheOnly]);
 
   useEffect(() => {
-    if (!isSupabaseReady || !conversationId || !conversationKey || useCacheOnly) {
+    if (!isSupabaseReady() || !conversationId || !conversationKey || useCacheOnly) {
       return;
     }
 

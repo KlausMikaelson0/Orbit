@@ -65,7 +65,7 @@ export function OrbitQuestsView() {
     setLoading(true);
     setError(null);
 
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       const now = new Date().toISOString();
       setQuests(getOrbitLocalQuests());
       setProgressRows(getOrbitLocalQuestProgress());
@@ -139,7 +139,7 @@ export function OrbitQuestsView() {
     setError(null);
     setSuccess(null);
 
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       setProgressRows((currentRows) => {
         const now = new Date().toISOString();
         const existing = currentRows.find((row) => row.quest_id === quest.id);
@@ -208,7 +208,7 @@ export function OrbitQuestsView() {
     setError(null);
     setSuccess(null);
 
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       const row = progressByQuestId[quest.id];
       if (!row?.completed_at) {
         setError("Complete the quest before claiming reward.");

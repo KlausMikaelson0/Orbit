@@ -55,7 +55,7 @@ export function useServerAnalytics(serverId: string | null, enabled: boolean) {
     setLoadingAnalytics(true);
     setAnalyticsError(null);
 
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       const channels = channelsByServer[serverId] ?? [];
       const channelMessages = channels.flatMap(
         (channel) => messageCache[`channel:${channel.id}`] ?? [],

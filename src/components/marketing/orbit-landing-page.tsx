@@ -90,7 +90,7 @@ const orbitSteps = [
 
 export function OrbitLandingPage() {
   const { t } = useOrbitLocale();
-  const browserOpenHref = "/dashboard";
+  const browserOpenHref = "/dashboard?local=1";
   const [downloadTarget, setDownloadTarget] = useState<DownloadTarget>(
     DOWNLOAD_TARGETS.windows,
   );

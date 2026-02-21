@@ -88,7 +88,7 @@ export function ChatInput({
   }, [attachment]);
 
   async function uploadAttachment(file: File) {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       throw new Error("Attachments require cloud storage configuration.");
     }
 
@@ -158,7 +158,7 @@ export function ChatInput({
       }
     }
 
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       const now = new Date().toISOString();
       const localMessage: OrbitMessageView = {
         id: `local-${crypto.randomUUID()}`,
@@ -408,7 +408,7 @@ export function ChatInput({
             message.created_at >= since && !message.thread_parent_id,
         );
 
-        if (isSupabaseReady) {
+        if (isSupabaseReady()) {
           const { data, error: summaryFetchError } = await supabase
             .from("messages")
             .select(
@@ -469,7 +469,7 @@ export function ChatInput({
       } else if (command.kind === "poll") {
         contentToSend = buildOrbitPollMarkdown(command.question, command.options);
       } else if (command.kind === "clear") {
-        if (!isSupabaseReady) {
+        if (!isSupabaseReady()) {
           const localRows = [...cachedMessages]
             .sort((a, b) => b.created_at.localeCompare(a.created_at))
             .slice(0, command.count);
@@ -580,7 +580,7 @@ export function ChatInput({
   const isDisabled =
     !conversationId ||
     !profile ||
-    (isSupabaseReady && mode === "channel" && !member) ||
+    (isSupabaseReady() && mode === "channel" && !member) ||
     sending;
 
   return (

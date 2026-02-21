@@ -7,11 +7,38 @@ const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://example.supabase.co";
 const supabaseAnonKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "example-anon-key";
+const LOCAL_MODE_STORAGE_KEY = "orbit_force_local_mode";
 
-export const isSupabaseReady = Boolean(
+function resolveForceLocalModeFlag() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const localParam = params.get("local");
+    if (localParam === "1") {
+      window.localStorage.setItem(LOCAL_MODE_STORAGE_KEY, "1");
+      return true;
+    }
+    if (localParam === "0") {
+      window.localStorage.removeItem(LOCAL_MODE_STORAGE_KEY);
+      return false;
+    }
+
+    return window.localStorage.getItem(LOCAL_MODE_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+const hasSupabaseEnv = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
 );
+export function isSupabaseReady() {
+  return hasSupabaseEnv && !resolveForceLocalModeFlag();
+}
 
 let cachedClient: SupabaseClient | null = null;
 

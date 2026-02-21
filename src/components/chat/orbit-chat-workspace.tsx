@@ -43,7 +43,8 @@ const LivekitChannelRoom = dynamic(
 const EMPTY_MESSAGES: OrbitMessageView[] = [];
 
 export function OrbitChatWorkspace() {
-  const isLocalMode = !isSupabaseReady;
+  const isLocalMode = !isSupabaseReady();
+  const hasLivekitUrl = Boolean(process.env.NEXT_PUBLIC_LIVEKIT_URL);
   const {
     sendFriendRequest,
     acceptFriendRequest,
@@ -229,6 +230,7 @@ export function OrbitChatWorkspace() {
               <div className="ml-2 flex items-center gap-1">
                 <Button
                   className="rounded-full"
+                  disabled={isLocalMode || !hasLivekitUrl}
                   onClick={() =>
                     void startDmCall(activeDmConversation.otherProfile, {
                       threadId: activeDmConversation.thread.id,
@@ -244,6 +246,7 @@ export function OrbitChatWorkspace() {
                 </Button>
                 <Button
                   className="rounded-full"
+                  disabled={isLocalMode || !hasLivekitUrl}
                   onClick={() =>
                     void startDmCall(activeDmConversation.otherProfile, {
                       threadId: activeDmConversation.thread.id,
@@ -257,6 +260,11 @@ export function OrbitChatWorkspace() {
                   <Video className="h-4 w-4" />
                   Video
                 </Button>
+                {!hasLivekitUrl ? (
+                  <span className="text-[11px] text-amber-200">
+                    Configure LiveKit URL to enable calls
+                  </span>
+                ) : null}
               </div>
             ) : null}
             {isTextServerChannel ? (

@@ -32,6 +32,9 @@ jobs:
         run: npm ci
 
       - name: Build static export for Pages
+        env:
+          ORBIT_BASE_PATH: /orbit
+          NEXT_PUBLIC_APP_URL: https://klausmikaelson0.github.io/orbit
         run: npm run desktop-export
 
       - name: Disable Jekyll processing

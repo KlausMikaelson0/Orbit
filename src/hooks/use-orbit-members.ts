@@ -49,7 +49,7 @@ export function useOrbitMembers(user: User | null, serverId: string | null) {
       return;
     }
 
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       setLoading(true);
       setMembers(getOrbitLocalMembers(serverId));
       setBot({
@@ -103,7 +103,7 @@ export function useOrbitMembers(user: User | null, serverId: string | null) {
   }, [fetchMembers]);
 
   useEffect(() => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       return;
     }
     if (!serverId) {
@@ -145,7 +145,7 @@ export function useOrbitMembers(user: User | null, serverId: string | null) {
   }, [fetchMembers, serverId, supabase]);
 
   useEffect(() => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       return;
     }
     if (!serverId || !user) {

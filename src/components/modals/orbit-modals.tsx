@@ -167,7 +167,7 @@ export function OrbitModals({
   joinServerByInvite,
 }: OrbitModalsProps) {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
-  const isLocalMode = !isSupabaseReady;
+  const isLocalMode = !isSupabaseReady();
   const { isOpen, type, data, onClose } = useModal();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

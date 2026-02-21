@@ -56,7 +56,7 @@ const OrbitCommandPalette = dynamic(
 export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const router = useRouter();
-  const isLocalMode = !isSupabaseReady;
+  const isLocalMode = !isSupabaseReady();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const { onOpen } = useModal();
@@ -175,7 +175,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
   }, [profile?.active_background_css]);
 
   useEffect(() => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       setLoading(false);
       return;
     }

@@ -21,7 +21,7 @@ function resolveAppOrigin(requestUrl: string) {
 
 function resolveNextPath(rawNext: string | null) {
   if (!rawNext || !rawNext.startsWith("/") || rawNext.startsWith("//")) {
-    return "/dashboard";
+    return "/dashboard?local=0";
   }
   return rawNext;
 }

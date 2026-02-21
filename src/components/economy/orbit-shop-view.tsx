@@ -62,7 +62,7 @@ export function OrbitShopView() {
     setLoading(true);
     setError(null);
 
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       const now = new Date().toISOString();
       const localItems = getOrbitLocalStoreItems();
       setStoreItems(localItems);
@@ -142,7 +142,7 @@ export function OrbitShopView() {
     setError(null);
     setSuccess(null);
 
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       const currentWallet = wallet;
       if (!currentWallet) {
         setError("Wallet is not available.");
@@ -191,7 +191,7 @@ export function OrbitShopView() {
     setError(null);
     setSuccess(null);
 
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       if (profile) {
         setProfile({
           ...(profile as OrbitProfile),

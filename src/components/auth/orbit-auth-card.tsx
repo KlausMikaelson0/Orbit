@@ -60,13 +60,13 @@ export function OrbitAuthCard() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       return;
     }
 
     void supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
-        router.replace("/dashboard");
+        router.replace("/dashboard?local=0");
       }
     });
   }, [router, supabase]);
@@ -83,7 +83,7 @@ export function OrbitAuthCard() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       setError(t("auth.notConfigured"));
       return;
     }
@@ -111,7 +111,7 @@ export function OrbitAuthCard() {
         return;
       }
 
-      router.replace("/dashboard");
+      router.replace("/dashboard?local=0");
       setLoading(false);
       return;
     }
@@ -138,7 +138,7 @@ export function OrbitAuthCard() {
   }
 
   async function handleGoogle() {
-    if (!isSupabaseReady) {
+    if (!isSupabaseReady()) {
       setError(t("auth.notConfigured"));
       return;
     }
@@ -148,7 +148,7 @@ export function OrbitAuthCard() {
     setMessage(null);
 
     const oauthRedirectBase = resolveOAuthRedirectBase();
-    const redirectTo = `${oauthRedirectBase}/auth/callback?next=${encodeURIComponent("/dashboard")}`;
+    const redirectTo = `${oauthRedirectBase}/auth/callback?next=${encodeURIComponent("/dashboard?local=0")}`;
 
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -264,16 +264,16 @@ export function OrbitAuthCard() {
               {error}
             </p>
           ) : null}
-          {!isSupabaseReady ? (
-            <div className="mt-4 rounded-xl border border-amber-400/35 bg-amber-500/10 px-3 py-2">
-              <p className="text-xs text-amber-100">
-                Cloud auth is not configured yet. You can continue now in browser local mode.
-              </p>
-              <Button asChild className="mt-2 rounded-full" size="sm" variant="secondary">
-                <Link href="/dashboard">Continue in browser</Link>
-              </Button>
-            </div>
-          ) : null}
+          <div className="mt-4 rounded-xl border border-amber-400/35 bg-amber-500/10 px-3 py-2">
+            <p className="text-xs text-amber-100">
+              {!isSupabaseReady()
+                ? "Cloud auth is not configured yet. You can continue now in browser local mode."
+                : "Need immediate access? Continue in browser local mode as guest."}
+            </p>
+            <Button asChild className="mt-2 rounded-full" size="sm" variant="secondary">
+              <Link href="/dashboard?local=1">Continue in browser</Link>
+            </Button>
+          </div>
         </div>
 
         <div className="glass-panel flex flex-col justify-between rounded-3xl p-8">
