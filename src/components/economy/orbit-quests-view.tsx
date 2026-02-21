@@ -31,6 +31,14 @@ const SPONSORED_PLAY_TAPS = 14;
 const SPONSORED_DEMO_VIDEO_URL =
   "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 
+function resolveSponsoredVideoSource(quest: OrbitQuest) {
+  const candidate = quest.sponsor_url?.trim() ?? "";
+  if (candidate && /\.mp4($|\?)/i.test(candidate)) {
+    return candidate;
+  }
+  return SPONSORED_DEMO_VIDEO_URL;
+}
+
 const categoryBackground: Record<string, string> = {
   VISIT:
     "radial-gradient(130% 140% at 12% 18%, rgba(56,189,248,0.36), transparent 50%), linear-gradient(135deg, #0c1226 0%, #12203f 55%, #140f29 100%)",
@@ -543,7 +551,7 @@ export function OrbitQuestsView() {
                             controls={false}
                             muted
                             playsInline
-                            src={SPONSORED_DEMO_VIDEO_URL}
+                            src={resolveSponsoredVideoSource(quest)}
                           />
                           <div className="h-2 w-full overflow-hidden rounded-full bg-white/15">
                             <div
