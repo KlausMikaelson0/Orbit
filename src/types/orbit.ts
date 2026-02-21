@@ -59,6 +59,7 @@ export interface OrbitServer {
   id: string;
   name: string;
   image_url: string | null;
+  description?: string | null;
   invite_code: string;
   owner_id: string;
   created_at: string;
@@ -388,6 +389,17 @@ export interface OrbitServerSoundboardItem {
   icon_emoji: string | null;
   created_by: string;
   usage_count: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitServerLift {
+  id: string;
+  server_id: string;
+  profile_id: string;
+  tier_snapshot: OrbitSubscriptionTier;
+  boost_points: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;

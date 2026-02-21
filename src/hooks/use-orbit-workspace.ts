@@ -185,7 +185,7 @@ export function useOrbitWorkspace(user: User | null) {
     const { data } = await supabase
       .from("members")
       .select(
-        "id, role, profile_id, server_id, created_at, updated_at, server:servers(id, name, image_url, invite_code, owner_id, created_at, updated_at)",
+        "id, role, profile_id, server_id, created_at, updated_at, server:servers(id, name, image_url, description, invite_code, owner_id, created_at, updated_at)",
       )
       .eq("profile_id", user.id)
       .order("created_at", { ascending: true });
@@ -349,6 +349,7 @@ export function useOrbitWorkspace(user: User | null) {
           id: `local-server-${crypto.randomUUID().slice(0, 8)}`,
           name: trimmedName,
           image_url: values.imageUrl?.trim() || null,
+          description: null,
           invite_code: generateInviteCode(),
           owner_id: ORBIT_LOCAL_PROFILE.id,
           created_at: now,
@@ -397,6 +398,7 @@ export function useOrbitWorkspace(user: User | null) {
         .insert({
           name: trimmedName,
           image_url: values.imageUrl?.trim() || null,
+          description: null,
           invite_code: generateInviteCode(),
           owner_id: user.id,
         })

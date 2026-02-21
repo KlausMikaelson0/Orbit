@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  ChevronDown,
   FileText,
   FlaskConical,
   Hash,
   MessagesSquare,
   Mic,
   Plus,
+  Rocket,
   ScrollText,
+  Settings2,
+  Share2,
   Shield,
   ShoppingBag,
   Users,
@@ -17,6 +21,14 @@ import {
 import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useOrbitChannelPermissions } from "@/src/hooks/use-orbit-channel-permissions";
 import { useModal } from "@/src/hooks/use-modal";
@@ -96,6 +108,18 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
     activeView === "SHOP" ||
     activeView === "QUESTS" ||
     activeView === "LABS";
+  const [headerNotice, setHeaderNotice] = useState<string | null>(null);
+
+  async function copyInviteCode(inviteCode: string) {
+    try {
+      await navigator.clipboard.writeText(inviteCode);
+      setHeaderNotice("Invite code copied.");
+      window.setTimeout(() => setHeaderNotice(null), 1400);
+    } catch {
+      setHeaderNotice("Unable to copy invite code.");
+      window.setTimeout(() => setHeaderNotice(null), 1600);
+    }
+  }
 
   useEffect(() => {
     if (!isServerView || !activeServerId) {
@@ -120,16 +144,92 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
       }`}
     >
       <div className="mb-3 rounded-2xl border border-white/10 bg-black/25 p-3">
-        <p className="truncate text-sm font-semibold text-violet-100">
-          {isServerView ? activeServer?.name ?? "Select a server" : "Home"}
-        </p>
-        <p className="mt-1 truncate text-xs text-zinc-400">
-          {isServerView
-            ? activeServer
-              ? `Invite: ${activeServer.invite_code}`
-              : "Join or create a server"
-            : "Direct messages and friends"}
-        </p>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-violet-100">
+              {isServerView ? activeServer?.name ?? "Select a server" : "Home"}
+            </p>
+            <p className="mt-1 truncate text-xs text-zinc-400">
+              {isServerView
+                ? activeServer
+                  ? `Invite: ${activeServer.invite_code}`
+                  : "Join or create a server"
+                : "Direct messages and friends"}
+            </p>
+            {isServerView && activeServer?.description ? (
+              <p className="mt-1 line-clamp-2 text-[11px] text-zinc-500">
+                {activeServer.description}
+              </p>
+            ) : null}
+          </div>
+          {isServerView && activeServer ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="h-7 rounded-full px-2" size="sm" variant="ghost">
+                  Group menu
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Server options</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => {
+                    void copyInviteCode(activeServer.invite_code);
+                  }}
+                >
+                  <Share2 className="h-4 w-4" />
+                  Copy invite code
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    onOpen("serverHub", {
+                      serverId: activeServer.id,
+                      section: "OVERVIEW",
+                    });
+                  }}
+                >
+                  <Settings2 className="h-4 w-4" />
+                  Server profile settings
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    onOpen("serverHub", {
+                      serverId: activeServer.id,
+                      section: "LIFT",
+                    });
+                  }}
+                >
+                  <Rocket className="h-4 w-4" />
+                  Orbit Lift
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    onOpen("createChannel", { serverId: activeServer.id });
+                    onNavigate?.();
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  Create channel
+                </DropdownMenuItem>
+                {canManageServerRules(activeServer.id) ? (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setActiveLabs();
+                      onNavigate?.();
+                    }}
+                  >
+                    <Shield className="h-4 w-4" />
+                    Rules & roles
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+        </div>
+        {headerNotice ? (
+          <p className="mt-2 text-[11px] text-cyan-200">{headerNotice}</p>
+        ) : null}
       </div>
 
       <div className="mb-2 flex items-center justify-between px-1">

@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { SwipeDismissable } from "@/components/ui/swipe-dismissable";
 import { Textarea } from "@/components/ui/textarea";
 import { OrbitLanguagePicker } from "@/src/components/i18n/orbit-language-picker";
+import { OrbitServerHubModal } from "@/src/components/modals/orbit-server-hub-modal";
 import { useModal } from "@/src/hooks/use-modal";
 import { useOrbitLocale } from "@/src/hooks/use-orbit-locale";
 import { useOrbitRuntime } from "@/src/hooks/use-orbit-runtime";
@@ -232,6 +233,7 @@ export function OrbitModals({
   const createChannelOpen = isOpen && type === "createChannel";
   const joinServerOpen = isOpen && type === "joinServer";
   const settingsOpen = isOpen && type === "settings";
+  const serverHubOpen = isOpen && type === "serverHub";
 
   const modalServerId = useMemo(() => data.serverId ?? null, [data.serverId]);
   const ownedItemSlugs = useMemo(
@@ -1783,6 +1785,17 @@ export function OrbitModals({
           </SwipeDismissable>
         </DialogContent>
       </Dialog>
+
+      <OrbitServerHubModal
+        initialSection={data.section === "LIFT" ? "LIFT" : "OVERVIEW"}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            onClose();
+          }
+        }}
+        open={serverHubOpen}
+        serverId={data.serverId ?? null}
+      />
     </>
   );
 }
