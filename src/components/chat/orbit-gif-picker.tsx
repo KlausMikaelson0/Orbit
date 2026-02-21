@@ -20,7 +20,7 @@ import {
 import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 import type { OrbitServerMediaAsset } from "@/src/types/orbit";
 
-export interface OrbitGifResult extends OrbitMediaPickerItem {}
+export type OrbitGifResult = OrbitMediaPickerItem;
 
 type OrbitGifPickerTab = "TRENDING" | "SEARCH" | "ORBIT" | "SERVER" | "STICKERS";
 
@@ -146,13 +146,15 @@ export function OrbitGifPicker({
       return;
     }
 
-    void supabase
-      .from("server_media_assets")
-      .select("*")
-      .eq("server_id", serverId)
-      .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .then((result) => {
+    void (async () => {
+      try {
+        const result = await supabase
+          .from("server_media_assets")
+          .select("*")
+          .eq("server_id", serverId)
+          .eq("is_active", true)
+          .order("created_at", { ascending: false });
+
         if (result.error) {
           setServerError(result.error.message);
           setServerItems([]);
@@ -163,12 +165,12 @@ export function OrbitGifPicker({
         const rows = (result.data ?? []) as OrbitServerMediaAsset[];
         setServerItems(rows.map(mapServerMediaRowToPickerItem));
         setLoadingServer(false);
-      })
-      .catch(() => {
+      } catch {
         setServerError("Unable to load custom server GIFs.");
         setServerItems([]);
         setLoadingServer(false);
-      });
+      }
+    })();
   }, [open, serverId, supabase]);
 
   useEffect(() => {
