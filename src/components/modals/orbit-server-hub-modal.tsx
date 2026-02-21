@@ -53,7 +53,14 @@ interface LocalServerMeta {
   invite_code: string;
 }
 
-const LIFT_LEVELS = [
+interface OrbitLiftLevel {
+  level: number;
+  minPoints: number;
+  title: string;
+  perks: string[];
+}
+
+const LIFT_LEVELS: OrbitLiftLevel[] = [
   {
     level: 0,
     minPoints: 0,
@@ -78,7 +85,7 @@ const LIFT_LEVELS = [
     title: "Orbit Lift III",
     perks: ["Ultra server banner effects", "Priority feature unlock queue"],
   },
-] as const;
+];
 
 function loadLocalServerMetaMap() {
   if (typeof window === "undefined") {
@@ -300,7 +307,7 @@ export function OrbitServerHubModal({
     });
     setLiftProfileNames(names);
     setLoadingLifts(false);
-  }, [isLocalMode, profile?.full_name, profile?.id, profile?.username, serverId, supabase]);
+  }, [isLocalMode, profile, serverId, supabase]);
 
   const loadServerHubState = useCallback(async () => {
     if (!open || !serverId) {
@@ -363,7 +370,7 @@ export function OrbitServerHubModal({
     isLocalMode,
     loadLiftData,
     open,
-    profile?.id,
+    profile,
     server,
     serverId,
     supabase,
@@ -749,7 +756,6 @@ export function OrbitServerHubModal({
                     <div className="flex items-center gap-3">
                       <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-black/30">
                         {serverPreviewImage ? (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             alt={serverName || "Server"}
                             className="h-full w-full object-cover"
