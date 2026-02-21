@@ -380,6 +380,19 @@ export interface OrbitServerMediaAsset {
   updated_at: string;
 }
 
+export interface OrbitServerSoundboardItem {
+  id: string;
+  server_id: string;
+  title: string;
+  sound_url: string;
+  icon_emoji: string | null;
+  created_by: string;
+  usage_count: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface OrbitServerEvent {
   id: string;
   server_id: string;

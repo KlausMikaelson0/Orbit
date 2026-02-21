@@ -184,6 +184,7 @@ Run migrations in order from `supabase/migrations/`:
 8. `20260220_orbit_phase9_supercharge.sql`
 9. `20260221_orbit_phase10_creator_payouts.sql`
 10. `20260222_orbit_phase11_media_assets.sql`
+11. `20260222_orbit_phase12_soundboard.sql`
 
 Phase 5 adds:
 - `orbit_bots` (per-server bot metadata)
@@ -222,6 +223,11 @@ Phase 11 adds:
 - `server_media_assets` (server-owned custom GIF and sticker library)
 - RLS policies so only server members can view and only server staff can manage
 - Orbit official sticker pack in `public/stickers/*`
+
+Phase 12 adds:
+- `server_soundboard_items` for custom server call sounds
+- RLS policies so server staff can manage items and members can use them
+- Realtime pub/sub support for in-call soundboard sync
 
 Also make sure Supabase Auth providers include:
 - Email/Password
@@ -333,6 +339,7 @@ This runs lint/build before `vercel --prod`.
 - [ ] All migrations applied through Phase 9
 - [ ] All migrations applied through Phase 10
 - [ ] All migrations applied through Phase 11
+- [ ] All migrations applied through Phase 12
 - [ ] Supabase Auth providers configured (Email/Password + Google + MFA)
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` added in Vercel
 - [ ] LiveKit keys configured and `/api/livekit/token` verified

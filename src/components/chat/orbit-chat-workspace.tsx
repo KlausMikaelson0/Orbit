@@ -432,6 +432,7 @@ export function OrbitChatWorkspace() {
           </div>
           <div className="min-h-0 flex-1">
             <LivekitChannelRoom
+              canManageServerSoundboard={false}
               channelId={activeCallSession.room_id}
               channelType={activeCallSession.mode}
               displayName={profile?.full_name ?? profile?.username ?? "Orbit User"}
@@ -535,6 +536,7 @@ export function OrbitChatWorkspace() {
         ) : (
           <div className="min-h-0 flex-1">
             <LivekitChannelRoom
+              canManageServerSoundboard={canManageServerRulesForActiveServer}
               channelId={activeChannel.id}
               channelType={activeChannel.type}
               displayName={
