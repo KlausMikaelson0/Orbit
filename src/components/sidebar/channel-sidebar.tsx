@@ -80,7 +80,10 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
   );
 
   const activeServer = servers.find((server) => server.id === activeServerId) ?? null;
-  const channels = activeServerId ? channelsByServer[activeServerId] ?? [] : [];
+  const channels = useMemo(
+    () => (activeServerId ? channelsByServer[activeServerId] ?? [] : []),
+    [activeServerId, channelsByServer],
+  );
   const visibleChannels = useMemo(
     () => channels.filter((channel) => canViewChannel(channel)),
     [canViewChannel, channels],

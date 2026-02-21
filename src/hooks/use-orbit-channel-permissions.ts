@@ -74,6 +74,7 @@ export function useOrbitChannelPermissions() {
   );
   const [loadingPermissions, setLoadingPermissions] = useState(false);
   const [permissions, setPermissions] = useState<OrbitChannelPermission[]>([]);
+  const profileId = profile?.id ?? null;
 
   const serverIds = useMemo(() => servers.map((server) => server.id), [servers]);
   const serverIdSignature = useMemo(() => serverIds.join(","), [serverIds]);
@@ -99,7 +100,7 @@ export function useOrbitChannelPermissions() {
             can_post: defaults.can_post,
             can_connect: defaults.can_connect,
             can_manage: defaults.can_manage,
-            created_by: profile?.id ?? null,
+            created_by: profileId,
             created_at: now,
             updated_at: now,
           });
@@ -107,7 +108,7 @@ export function useOrbitChannelPermissions() {
       }
     }
     return rows;
-  }, [channelsByServer, profile?.id, serverIds]);
+  }, [channelsByServer, profileId, serverIds]);
 
   const fetchPermissions = useCallback(async () => {
     if (!serverIds.length) {
@@ -207,7 +208,7 @@ export function useOrbitChannelPermissions() {
       }
 
       const server = serverById.get(channel.server_id);
-      const isOwner = Boolean(profile?.id && server?.owner_id === profile.id);
+      const isOwner = Boolean(profileId && server?.owner_id === profileId);
       if (isOwner) {
         return {
           role: "ADMIN",
@@ -249,7 +250,7 @@ export function useOrbitChannelPermissions() {
         canManage: row.can_manage,
       };
     },
-    [membershipsByServer, permissionByChannelRole, profile?.id, serverById],
+    [membershipsByServer, permissionByChannelRole, profileId, serverById],
   );
 
   const canViewChannel = useCallback(
@@ -295,13 +296,13 @@ export function useOrbitChannelPermissions() {
       if (!server) {
         return false;
       }
-      if (profile?.id && server.owner_id === profile.id) {
+      if (profileId && server.owner_id === profileId) {
         return true;
       }
       const role = membershipsByServer[serverId]?.role ?? null;
       return role === "ADMIN" || role === "MODERATOR";
     },
-    [membershipsByServer, profile?.id, serverById],
+    [membershipsByServer, profileId, serverById],
   );
 
   return {

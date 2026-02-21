@@ -106,7 +106,10 @@ export function OrbitChatWorkspace() {
   const [showAnalytics, setShowAnalytics] = useState(false);
 
   const activeServer = servers.find((server) => server.id === activeServerId) ?? null;
-  const activeChannels = activeServerId ? channelsByServer[activeServerId] ?? [] : [];
+  const activeChannels = useMemo(
+    () => (activeServerId ? channelsByServer[activeServerId] ?? [] : []),
+    [activeServerId, channelsByServer],
+  );
   const activeChannel =
     activeChannels.find((channel) => channel.id === activeChannelId) ?? null;
   const currentMember = activeServerId
