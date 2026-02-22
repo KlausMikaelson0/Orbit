@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Gem,
+  Heart,
   Palette,
   Search,
+  Shuffle,
+  SlidersHorizontal,
   Sparkles,
   Store,
   UserRound,
@@ -32,6 +35,7 @@ import type {
 } from "@/src/types/orbit";
 
 type ShopTab = "FEATURED" | "AVATAR" | "PROFILE" | "EFFECTS" | "ALL";
+type ShopSort = "POPULAR" | "PRICE_ASC" | "PRICE_DESC" | "NAME" | "RARITY";
 
 const SHOP_TABS: Array<{ key: ShopTab; label: string }> = [
   { key: "FEATURED", label: "Featured" },
@@ -40,6 +44,14 @@ const SHOP_TABS: Array<{ key: ShopTab; label: string }> = [
   { key: "EFFECTS", label: "Effects" },
   { key: "ALL", label: "All Items" },
 ];
+const SHOP_SORTS: Array<{ key: ShopSort; label: string }> = [
+  { key: "POPULAR", label: "Popular" },
+  { key: "PRICE_ASC", label: "Price: Low to High" },
+  { key: "PRICE_DESC", label: "Price: High to Low" },
+  { key: "NAME", label: "Name" },
+  { key: "RARITY", label: "Rarity" },
+];
+const ORBS_EXCLUSIVE_MIN_PRICE = 3500;
 
 const CATEGORY_LABELS: Record<OrbitStoreCategory, string> = {
   BACKGROUND: "Background",
@@ -50,7 +62,94 @@ const CATEGORY_LABELS: Record<OrbitStoreCategory, string> = {
   SFX_PACK: "SFX Pack",
 };
 
+function rarityScore(rarity: string) {
+  switch (rarity.toUpperCase()) {
+    case "LEGENDARY":
+      return 5;
+    case "EPIC":
+      return 4;
+    case "RARE":
+      return 3;
+    case "UNCOMMON":
+      return 2;
+    default:
+      return 1;
+  }
+}
+
+function popularityScore(item: OrbitStoreItem) {
+  const base =
+    rarityScore(item.rarity) * 320 +
+    Math.min(2400, Math.round(item.price_starbits * 0.18)) +
+    (item.name.toLowerCase().includes("bundle") ? 300 : 0);
+
+  return base + Math.max(0, 550 - item.sort_order);
+}
+
+function pseudoRandomForKey(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function getRaritySwatches(rarity: string) {
+  switch (rarity.toUpperCase()) {
+    case "LEGENDARY":
+      return ["#f97316", "#ec4899", "#a855f7"];
+    case "EPIC":
+      return ["#8b5cf6", "#6366f1", "#22d3ee"];
+    case "RARE":
+      return ["#38bdf8", "#818cf8", "#60a5fa"];
+    default:
+      return ["#52525b", "#71717a", "#a1a1aa"];
+  }
+}
+
+function isOrbsExclusive(item: OrbitStoreItem) {
+  return (
+    item.price_starbits >= ORBS_EXCLUSIVE_MIN_PRICE ||
+    rarityScore(item.rarity) >= 5 ||
+    item.name.toLowerCase().includes("infinite") ||
+    item.name.toLowerCase().includes("magic mists") ||
+    item.name.toLowerCase().includes("nevermore")
+  );
+}
+
 function getPreviewStyle(item: OrbitStoreItem) {
+  if (item.slug.includes("nevermore")) {
+    return {
+      background:
+        "radial-gradient(120% 140% at 78% 22%, rgba(148,163,184,0.34), transparent 45%), linear-gradient(145deg,#090b10 0%,#111827 55%,#18181b 100%)",
+    };
+  }
+  if (item.slug.includes("lone-wolf")) {
+    return {
+      background:
+        "radial-gradient(120% 120% at 18% 18%, rgba(59,130,246,0.32), transparent 48%), linear-gradient(145deg,#0b1022 0%,#1e1b4b 60%,#18181b 100%)",
+    };
+  }
+  if (item.slug.includes("hunny-bunnies")) {
+    return {
+      background:
+        "radial-gradient(130% 130% at 22% 18%, rgba(236,72,153,0.35), transparent 44%), linear-gradient(145deg,#29112b 0%,#4c1d95 58%,#1f2937 100%)",
+    };
+  }
+  if (item.slug.includes("dark-roses")) {
+    return {
+      background:
+        "radial-gradient(120% 120% at 80% 20%, rgba(244,63,94,0.26), transparent 44%), linear-gradient(145deg,#120c1f 0%,#1f123b 55%,#111827 100%)",
+    };
+  }
+  if (item.slug.includes("infinite-swirl") || item.slug.includes("magic-mists")) {
+    return {
+      background:
+        "radial-gradient(120% 120% at 20% 20%, rgba(96,165,250,0.34), transparent 46%), radial-gradient(130% 130% at 82% 76%, rgba(192,132,252,0.3), transparent 48%), linear-gradient(145deg,#0a1020 0%,#312e81 58%,#1f2937 100%)",
+    };
+  }
+
   if (item.category === "BACKGROUND" && item.css_background) {
     return { background: item.css_background };
   }
@@ -103,6 +202,10 @@ function getPreviewText(item: OrbitStoreItem) {
   }
 }
 
+function formatCoinPrice(value: number) {
+  return value.toLocaleString();
+}
+
 export function OrbitShopView() {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const localMode = !isSupabaseReady();
@@ -114,6 +217,8 @@ export function OrbitShopView() {
   );
 
   const [tab, setTab] = useState<ShopTab>("FEATURED");
+  const [sortBy, setSortBy] = useState<ShopSort>("POPULAR");
+  const [shuffleSeed, setShuffleSeed] = useState<number>(0);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -174,6 +279,44 @@ export function OrbitShopView() {
 
     return rows;
   }, [query, storeItems, tab]);
+
+  const sortedItems = useMemo(() => {
+    const rows = [...visibleItems];
+
+    if (sortBy === "PRICE_ASC") {
+      rows.sort((a, b) => a.price_starbits - b.price_starbits);
+    } else if (sortBy === "PRICE_DESC") {
+      rows.sort((a, b) => b.price_starbits - a.price_starbits);
+    } else if (sortBy === "NAME") {
+      rows.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === "RARITY") {
+      rows.sort((a, b) => rarityScore(b.rarity) - rarityScore(a.rarity));
+    } else {
+      rows.sort((a, b) => popularityScore(b) - popularityScore(a));
+    }
+
+    if (shuffleSeed > 0) {
+      rows.sort(
+        (a, b) =>
+          pseudoRandomForKey(`${a.slug}-${shuffleSeed}`) -
+          pseudoRandomForKey(`${b.slug}-${shuffleSeed}`),
+      );
+    }
+
+    return rows;
+  }, [shuffleSeed, sortBy, visibleItems]);
+
+  const popularPicks = useMemo(
+    () =>
+      [...sortedItems]
+        .sort((a, b) => popularityScore(b) - popularityScore(a))
+        .slice(0, 12),
+    [sortedItems],
+  );
+  const orbsExclusive = useMemo(
+    () => sortedItems.filter((item) => isOrbsExclusive(item)),
+    [sortedItems],
+  );
 
   const activeEquippedCategories = useMemo(
     () =>
@@ -370,6 +513,112 @@ export function OrbitShopView() {
     setActionKey(null);
   }
 
+  function renderStoreCard(item: OrbitStoreItem, forceExclusiveBadge = false) {
+    const owned = ownedSlugs.has(item.slug);
+    const equippable = isOrbitEquippableCategory(item.category);
+    const equipped = equippable
+      ? getOrbitEquippedSlugForCategory(profile, item.category) === item.slug
+      : false;
+    const canAfford = (wallet?.starbits_balance ?? 0) >= item.price_starbits;
+    const buyBusy = actionKey === `buy:${item.slug}`;
+    const equipBusy = actionKey === `equip:${item.category}:${item.slug}`;
+    const busy = buyBusy || equipBusy;
+    const cardExclusive = forceExclusiveBadge || isOrbsExclusive(item);
+    const swatches = getRaritySwatches(item.rarity);
+
+    return (
+      <article
+        className="overflow-hidden rounded-2xl border border-white/10 bg-black/35 transition hover:border-violet-300/35 hover:shadow-[0_0_0_1px_rgba(167,139,250,0.2)]"
+        key={item.slug}
+      >
+        <div
+          className="relative h-32 border-b border-white/10"
+          style={getPreviewStyle(item)}
+        >
+          {cardExclusive ? (
+            <span className="absolute left-2 top-2 rounded-full border border-white/30 bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-100">
+              Orbs Exclusive
+            </span>
+          ) : null}
+          <button
+            className="absolute right-2 top-2 rounded-full border border-white/20 bg-black/45 p-1 text-zinc-300 hover:text-white"
+            type="button"
+          >
+            <Heart className="h-3.5 w-3.5" />
+          </button>
+          {item.category !== "BACKGROUND" ? (
+            <div className="flex h-full items-center justify-center text-sm font-medium text-zinc-100/90">
+              {getPreviewText(item)}
+            </div>
+          ) : null}
+        </div>
+        <div className="space-y-2 p-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-zinc-100">{item.name}</p>
+              <p className="line-clamp-2 text-xs text-zinc-300">{item.description}</p>
+            </div>
+            <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-300">
+              {item.rarity}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-xs text-zinc-400">
+            <span>{CATEGORY_LABELS[item.category]}</span>
+            <span className="inline-flex items-center gap-1 text-zinc-200">
+              <Gem className="h-3.5 w-3.5 text-zinc-300" />
+              {formatCoinPrice(item.price_starbits)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1">
+              {swatches.map((color) => (
+                <span
+                  className="h-2.5 w-2.5 rounded-full border border-white/15"
+                  key={`${item.slug}-${color}`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+            <Button
+              className="rounded-full"
+              disabled={busy || (!owned && !canAfford) || (owned && !equippable)}
+              onClick={() => {
+                if (!owned) {
+                  void buyItem(item);
+                  return;
+                }
+                if (equippable) {
+                  void equipItem(item.category, item);
+                }
+              }}
+              size="sm"
+              type="button"
+              variant={equipped ? "secondary" : "default"}
+            >
+              {busy ? (
+                <Store className="h-4 w-4" />
+              ) : equippable ? (
+                <UserRound className="h-4 w-4" />
+              ) : (
+                <Gem className="h-4 w-4" />
+              )}
+              {!owned
+                ? "Buy"
+                : equippable
+                  ? equipped
+                    ? "Equipped"
+                    : "Equip"
+                  : "Owned"}
+            </Button>
+          </div>
+          {!owned && !canAfford ? (
+            <p className="text-[11px] text-rose-300">Need more Starbits</p>
+          ) : null}
+        </div>
+      </article>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 pb-1">
       <section className="overflow-hidden rounded-2xl border border-white/10 bg-black/25">
@@ -488,7 +737,32 @@ export function OrbitShopView() {
             </Button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-3 py-1 text-xs text-zinc-300">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span>Sort by</span>
+            <select
+              className="h-7 rounded-md border border-white/15 bg-black/40 px-2 text-xs text-zinc-200 outline-none"
+              onChange={(event) => setSortBy(event.target.value as ShopSort)}
+              value={sortBy}
+            >
+              {SHOP_SORTS.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Button
+            className="rounded-full"
+            onClick={() => setShuffleSeed(Date.now())}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <Shuffle className="h-4 w-4" />
+            Shuffle!
+          </Button>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
             <Input
@@ -517,86 +791,55 @@ export function OrbitShopView() {
           Loading Orbit Shop...
         </div>
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto md:grid-cols-2 xl:grid-cols-3">
-          {visibleItems.map((item) => {
-            const owned = ownedSlugs.has(item.slug);
-            const equippable = isOrbitEquippableCategory(item.category);
-            const equipped = equippable
-              ? getOrbitEquippedSlugForCategory(profile, item.category) === item.slug
-              : false;
-            const canAfford = (wallet?.starbits_balance ?? 0) >= item.price_starbits;
-            const buyBusy = actionKey === `buy:${item.slug}`;
-            const equipBusy = actionKey === `equip:${item.category}:${item.slug}`;
-            const busy = buyBusy || equipBusy;
+        <div className="min-h-0 flex-1 space-y-5 overflow-auto">
+          {tab === "FEATURED" ? (
+            <>
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-zinc-100">Orbs-Worthy Popular Picks</h3>
+                  <p className="text-xs text-zinc-400">
+                    Curated cosmetic bundles and top profile styles.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  {popularPicks.length ? (
+                    popularPicks.map((item) => renderStoreCard(item))
+                  ) : (
+                    <div className="col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
+                      No popular picks found for this filter.
+                    </div>
+                  )}
+                </div>
+              </section>
 
-            return (
-              <article
-                className="overflow-hidden rounded-2xl border border-white/10 bg-black/30 transition hover:border-violet-300/35 hover:shadow-[0_0_0_1px_rgba(167,139,250,0.2)]"
-                key={item.slug}
-              >
-                <div
-                  className="h-24 border-b border-white/10"
-                  style={getPreviewStyle(item)}
-                >
-                  {item.category !== "BACKGROUND" ? (
-                    <div className="flex h-full items-center justify-center text-xs text-zinc-200">
-                      {getPreviewText(item)}
-                    </div>
-                  ) : null}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-zinc-100">Orbs Exclusive</h3>
+                  <p className="text-xs text-zinc-400">
+                    High-tier drops and premium cosmetics.
+                  </p>
                 </div>
-                <div className="space-y-2 p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-zinc-100">{item.name}</p>
-                      <p className="text-xs text-zinc-300">{item.description}</p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  {orbsExclusive.length ? (
+                    orbsExclusive.map((item) => renderStoreCard(item, true))
+                  ) : (
+                    <div className="col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
+                      No exclusive items available for this filter.
                     </div>
-                    <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-300">
-                      {item.rarity}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-zinc-400">
-                    <span>{CATEGORY_LABELS[item.category]}</span>
-                    <span>{item.price_starbits.toLocaleString()} Starbits</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      className="rounded-full"
-                      disabled={busy || (!owned && !canAfford) || (owned && !equippable)}
-                      onClick={() => {
-                        if (!owned) {
-                          void buyItem(item);
-                          return;
-                        }
-                        if (equippable) {
-                          void equipItem(item.category, item);
-                        }
-                      }}
-                      size="sm"
-                      type="button"
-                      variant={equipped ? "secondary" : "default"}
-                    >
-                      {busy ? <Store className="h-4 w-4" /> : equippable ? <UserRound className="h-4 w-4" /> : <Gem className="h-4 w-4" />}
-                      {!owned
-                        ? "Buy"
-                        : equippable
-                          ? equipped
-                            ? "Equipped"
-                            : "Equip"
-                          : "Owned"}
-                    </Button>
-                    {!owned && !canAfford ? (
-                      <span className="text-[11px] text-rose-300">Need more Starbits</span>
-                    ) : null}
-                  </div>
+                  )}
                 </div>
-              </article>
-            );
-          })}
-          {!visibleItems.length ? (
-            <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
-              No items match your current filter.
+              </section>
+            </>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {sortedItems.map((item) => renderStoreCard(item))}
+              {!sortedItems.length ? (
+                <div className="col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
+                  No items match your current filter.
+                </div>
+              ) : null}
             </div>
-          ) : null}
+          )}
         </div>
       )}
 

@@ -189,6 +189,7 @@ Run migrations in order from `supabase/migrations/`:
 13. `20260223_orbit_phase14_channel_settings.sql`
 14. `20260224_orbit_phase15_profile_cosmetics_connections.sql`
 15. `20260224_orbit_phase16_offerwall_expansion.sql`
+16. `20260224_orbit_phase17_shop_showcase_catalog.sql`
 
 Phase 5 adds:
 - `orbit_bots` (per-server bot metadata)
@@ -252,6 +253,10 @@ Phase 15 adds:
 Phase 16 adds:
 - Expanded sponsored offerwall quests (more WATCH/PLAY campaigns)
 - Additional seeded ad/game missions with stricter completion flow
+
+Phase 17 adds:
+- Expanded shop showcase catalog with high-tier bundles and exclusive cosmetics
+- Additional avatar frame/profile banner/profile effect items for popular picks sections
 
 Also make sure Supabase Auth providers include:
 - Email/Password
@@ -382,6 +387,7 @@ This is the easiest route for non-technical publishing with a secure CI pipeline
 - [ ] All migrations applied through Phase 14
 - [ ] All migrations applied through Phase 15
 - [ ] All migrations applied through Phase 16
+- [ ] All migrations applied through Phase 17
 - [ ] Supabase Auth providers configured (Email/Password + Google + MFA)
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` added in Vercel
 - [ ] LiveKit keys configured and `/api/livekit/token` verified
