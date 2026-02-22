@@ -2,7 +2,7 @@
 
 import { FormEvent, memo, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { MessageSquare, UserPlus, Users } from "lucide-react";
+import { MessageSquare, Search, UserPlus, Users } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,7 +13,7 @@ import { useOrbitSocialContext } from "@/src/context/orbit-social-context";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { OrbitFriendView, OrbitProfile } from "@/src/types/orbit";
 
-type FriendsTab = "ALL" | "PENDING" | "ADD";
+type FriendsTab = "ALL" | "ONLINE" | "PENDING" | "BLOCKED" | "ADD";
 
 interface FriendsViewProps {
   sendFriendRequest: (identifier: string) => Promise<{ error?: string }>;
@@ -22,6 +22,20 @@ interface FriendsViewProps {
   openOrCreateDmWithProfile: (
     profile: OrbitProfile,
   ) => Promise<{ error?: string }>;
+}
+
+function friendMatchesQuery(friend: OrbitFriendView, query: string) {
+  if (!query) {
+    return true;
+  }
+  const name = friend.profile.full_name ?? "";
+  const username = friend.profile.username ?? "";
+  const tag = friend.profile.tag ?? "";
+  return (
+    name.toLowerCase().includes(query) ||
+    username.toLowerCase().includes(query) ||
+    `${username}#${tag}`.toLowerCase().includes(query)
+  );
 }
 
 export function FriendsView({
@@ -33,15 +47,18 @@ export function FriendsView({
   const { loadingSocial } = useOrbitSocialContext();
   const [tab, setTab] = useState<FriendsTab>("ALL");
   const [requestInput, setRequestInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const { relationships, onlineProfileIds, profile } = useOrbitNavStore(
+  const { relationships, onlineProfileIds, profile, dmConversations, activeCallSession } = useOrbitNavStore(
     useShallow((state) => ({
       relationships: state.relationships,
       onlineProfileIds: state.onlineProfileIds,
       profile: state.profile,
+      dmConversations: state.dmConversations,
+      activeCallSession: state.activeCallSession,
     })),
   );
 
@@ -112,6 +129,65 @@ export function FriendsView({
       .filter((row): row is OrbitFriendView => Boolean(row));
   }, [onlineProfileIds, profile, relationships]);
 
+  const blockedFriends = useMemo(() => {
+    if (!profile) {
+      return [] as OrbitFriendView[];
+    }
+
+    return relationships
+      .filter((row) => row.status === "BLOCKED")
+      .map((relationship) => {
+        const isRequester = relationship.requester_id === profile.id;
+        const friend = isRequester ? relationship.addressee : relationship.requester;
+        if (!friend) {
+          return null;
+        }
+        return {
+          relationship,
+          profile: friend,
+          online: onlineProfileIds.includes(friend.id),
+        } satisfies OrbitFriendView;
+      })
+      .filter((row): row is OrbitFriendView => Boolean(row));
+  }, [onlineProfileIds, profile, relationships]);
+
+  const query = searchQuery.trim().toLowerCase();
+  const filteredAcceptedFriends = useMemo(
+    () => acceptedFriends.filter((friend) => friendMatchesQuery(friend, query)),
+    [acceptedFriends, query],
+  );
+  const onlineFriends = useMemo(
+    () => filteredAcceptedFriends.filter((friend) => friend.online),
+    [filteredAcceptedFriends],
+  );
+  const filteredPendingIncoming = useMemo(
+    () => pendingIncoming.filter((friend) => friendMatchesQuery(friend, query)),
+    [pendingIncoming, query],
+  );
+  const filteredPendingOutgoing = useMemo(
+    () => pendingOutgoing.filter((friend) => friendMatchesQuery(friend, query)),
+    [pendingOutgoing, query],
+  );
+  const filteredBlockedFriends = useMemo(
+    () => blockedFriends.filter((friend) => friendMatchesQuery(friend, query)),
+    [blockedFriends, query],
+  );
+  const activeNowFriends = useMemo(
+    () => acceptedFriends.filter((friend) => friend.online).slice(0, 7),
+    [acceptedFriends],
+  );
+
+  const lastMessageByProfileId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const conversation of dmConversations) {
+      const id = conversation.otherProfile.id;
+      if (!map.has(id)) {
+        map.set(id, conversation.lastMessage?.content ?? "Online");
+      }
+    }
+    return map;
+  }, [dmConversations]);
+
   async function onSendFriendRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -133,7 +209,7 @@ export function FriendsView({
           <p className="text-sm font-semibold">Friends</p>
         </div>
         <div className="mt-3 flex items-center gap-2">
-          {(["ALL", "PENDING", "ADD"] as FriendsTab[]).map((item) => (
+          {(["ALL", "ONLINE", "PENDING", "BLOCKED", "ADD"] as FriendsTab[]).map((item) => (
             <Button
               className="rounded-full"
               key={item}
@@ -146,6 +222,17 @@ export function FriendsView({
             </Button>
           ))}
         </div>
+        {tab !== "ADD" ? (
+          <div className="relative mt-3">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <Input
+              className="h-10 rounded-xl border-white/10 bg-black/35 pl-9"
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search friends"
+              value={searchQuery}
+            />
+          </div>
+        ) : null}
       </div>
 
       {tab === "ADD" ? (
@@ -180,62 +267,127 @@ export function FriendsView({
         </div>
       ) : null}
 
-      {tab === "ALL" ? (
-        <FriendList
-          actionLabel="Message"
-          emptyText="No friends yet. Add people to start direct conversations."
-          friends={acceptedFriends}
-          loading={loadingSocial}
-          onAction={async (friend) => {
-            await openOrCreateDmWithProfile(friend.profile);
-          }}
-          renderActionIcon={<MessageSquare className="h-4 w-4" />}
-        />
-      ) : null}
+      {tab !== "ADD" ? (
+        <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="min-h-0 flex-1">
+            {tab === "ALL" ? (
+              <FriendList
+                actionLabel="Message"
+                emptyText="No friends yet. Add people to start direct conversations."
+                friends={filteredAcceptedFriends}
+                loading={loadingSocial}
+                onAction={async (friend) => {
+                  await openOrCreateDmWithProfile(friend.profile);
+                }}
+                renderActionIcon={<MessageSquare className="h-4 w-4" />}
+              />
+            ) : null}
 
-      {tab === "PENDING" ? (
-        <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-2">
-          <FriendList
-            actionLabel="Accept"
-            emptyText="No incoming requests."
-            friends={pendingIncoming}
-            loading={loadingSocial}
-            onAction={async (friend) => {
-              setBusyId(friend.relationship.id);
-              const result = await acceptFriendRequest(friend.relationship.id);
-              if (result.error) {
-                setError(result.error);
-              }
-              setBusyId(null);
-            }}
-            renderActionIcon={null}
-            secondaryActionLabel="Decline"
-            onSecondaryAction={async (friend) => {
-              setBusyId(friend.relationship.id);
-              const result = await declineFriendRequest(friend.relationship.id);
-              if (result.error) {
-                setError(result.error);
-              }
-              setBusyId(null);
-            }}
-            busyId={busyId}
-          />
-          <FriendList
-            actionLabel="Cancel"
-            emptyText="No outgoing requests."
-            friends={pendingOutgoing}
-            loading={loadingSocial}
-            onAction={async (friend) => {
-              setBusyId(friend.relationship.id);
-              const result = await declineFriendRequest(friend.relationship.id);
-              if (result.error) {
-                setError(result.error);
-              }
-              setBusyId(null);
-            }}
-            renderActionIcon={null}
-            busyId={busyId}
-          />
+            {tab === "ONLINE" ? (
+              <FriendList
+                actionLabel="Message"
+                emptyText="No friends online right now."
+                friends={onlineFriends}
+                loading={loadingSocial}
+                onAction={async (friend) => {
+                  await openOrCreateDmWithProfile(friend.profile);
+                }}
+                renderActionIcon={<MessageSquare className="h-4 w-4" />}
+              />
+            ) : null}
+
+            {tab === "PENDING" ? (
+              <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-2">
+                <FriendList
+                  actionLabel="Accept"
+                  emptyText="No incoming requests."
+                  friends={filteredPendingIncoming}
+                  loading={loadingSocial}
+                  onAction={async (friend) => {
+                    setBusyId(friend.relationship.id);
+                    const result = await acceptFriendRequest(friend.relationship.id);
+                    if (result.error) {
+                      setError(result.error);
+                    }
+                    setBusyId(null);
+                  }}
+                  renderActionIcon={null}
+                  secondaryActionLabel="Decline"
+                  onSecondaryAction={async (friend) => {
+                    setBusyId(friend.relationship.id);
+                    const result = await declineFriendRequest(friend.relationship.id);
+                    if (result.error) {
+                      setError(result.error);
+                    }
+                    setBusyId(null);
+                  }}
+                  busyId={busyId}
+                />
+                <FriendList
+                  actionLabel="Cancel"
+                  emptyText="No outgoing requests."
+                  friends={filteredPendingOutgoing}
+                  loading={loadingSocial}
+                  onAction={async (friend) => {
+                    setBusyId(friend.relationship.id);
+                    const result = await declineFriendRequest(friend.relationship.id);
+                    if (result.error) {
+                      setError(result.error);
+                    }
+                    setBusyId(null);
+                  }}
+                  renderActionIcon={null}
+                  busyId={busyId}
+                />
+              </div>
+            ) : null}
+
+            {tab === "BLOCKED" ? (
+              <FriendList
+                actionLabel="Remove"
+                emptyText="No blocked users."
+                friends={filteredBlockedFriends}
+                loading={loadingSocial}
+                onAction={async (friend) => {
+                  setBusyId(friend.relationship.id);
+                  const result = await declineFriendRequest(friend.relationship.id);
+                  if (result.error) {
+                    setError(result.error);
+                  }
+                  setBusyId(null);
+                }}
+                renderActionIcon={null}
+                busyId={busyId}
+              />
+            ) : null}
+          </div>
+
+          <aside className="hidden rounded-2xl border border-white/10 bg-black/25 p-3 xl:block">
+            <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Active Now</p>
+            <div className="mt-2 space-y-2">
+              {activeNowFriends.map((friend) => {
+                const label = friend.profile.full_name ?? friend.profile.username ?? "Orbit User";
+                const isInCall = activeCallSession?.peer_profile_id === friend.profile.id;
+                const activity = isInCall
+                  ? "In a voice call"
+                  : lastMessageByProfileId.get(friend.profile.id) ?? "Online";
+                return (
+                  <article
+                    className="rounded-xl border border-white/10 bg-black/30 px-2.5 py-2"
+                    key={`active-now-${friend.relationship.id}`}
+                  >
+                    <p className="truncate text-sm text-zinc-100">{label}</p>
+                    <p className="truncate text-[11px] text-zinc-400">{activity}</p>
+                  </article>
+                );
+              })}
+              {!activeNowFriends.length ? (
+                <div className="rounded-xl border border-dashed border-white/10 px-3 py-6 text-center text-xs text-zinc-500">
+                  No friends active right now.
+                </div>
+              ) : null}
+            </div>
+          </aside>
         </div>
       ) : null}
     </div>
