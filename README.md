@@ -339,10 +339,24 @@ vercel --prod
 Use the included deployment helper:
 
 ```bash
-./scripts/deploy-vercel.sh
+npm run deploy:vercel
 ```
 
-This runs lint/build before `vercel --prod`.
+This runs lint/build before `vercel deploy --prod` (via global CLI or `npx` fallback).
+
+### One-time auto deploy setup (recommended)
+If you want "push to main = deploy automatically" without local CLI:
+
+1. In GitHub repo settings, open **Secrets and variables > Actions**.
+2. Add the following repository secrets:
+   - `VERCEL_TOKEN`
+   - `VERCEL_ORG_ID`
+   - `VERCEL_PROJECT_ID`
+3. The workflow `.github/workflows/deploy-vercel.yml` will deploy on:
+   - every push to `main`
+   - manual **Run workflow**
+
+This is the easiest route for non-technical publishing with a secure CI pipeline.
 
 ## Final Go-Live Checklist (Vercel)
 

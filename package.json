@@ -8,6 +8,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "deploy:vercel": "bash ./scripts/deploy-vercel.sh",
     "desktop-export": "node ./scripts/desktop-export.mjs",
     "electron-run": "electron .",
     "electron-dev": "concurrently -k \"npm run dev\" \"npm run electron-run\"",
