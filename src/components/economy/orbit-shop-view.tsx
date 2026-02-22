@@ -364,10 +364,6 @@ function getPreviewStyle(item: OrbitStoreItem) {
 }
 
 function getPreviewText(item: OrbitStoreItem) {
-  if (item.preview_emoji) {
-    return item.preview_emoji;
-  }
-
   switch (item.category) {
     case "AVATAR_FRAME":
       return "Frame";
@@ -820,8 +816,20 @@ export function OrbitShopView() {
             <Heart className="h-3.5 w-3.5" />
           </button>
           {item.category !== "BACKGROUND" ? (
-            <div className="flex h-full items-center justify-center text-sm font-medium text-zinc-100/90">
-              {getPreviewText(item)}
+            <div className="flex h-full items-center justify-center px-4 py-3">
+              <div className="w-full max-w-[230px] rounded-xl border border-white/20 bg-black/35 p-2">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="h-6 w-6 rounded-full border border-white/15 bg-zinc-900/70" />
+                  <div className="h-2.5 flex-1 rounded-full bg-white/15" />
+                </div>
+                <div className="h-8 rounded-lg border border-white/10 bg-black/35" />
+                <div className="mt-2 flex items-center justify-between">
+                  <div className="h-2 w-14 rounded-full bg-white/15" />
+                  <span className="rounded-full border border-white/20 px-1.5 py-0.5 text-[10px] text-zinc-200/90">
+                    {getPreviewText(item)}
+                  </span>
+                </div>
+              </div>
             </div>
           ) : null}
         </div>

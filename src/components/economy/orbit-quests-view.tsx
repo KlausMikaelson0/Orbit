@@ -1,9 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Gift, Sparkles, Store, Trophy, Video } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock3,
+  ExternalLink,
+  Gift,
+  PlayCircle,
+  Sparkles,
+  Store,
+  Trophy,
+  Video,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 import {
   ORBIT_LOCAL_PROFILE,
@@ -65,6 +76,19 @@ const categoryBackground: Record<string, string> = {
     "radial-gradient(130% 140% at 88% 82%, rgba(244,63,94,0.36), transparent 52%), linear-gradient(135deg, #1a0a12 0%, #301323 54%, #141827 100%)",
 };
 
+const QUEST_CAMPAIGN_STYLES: Record<string, string> = {
+  "local-watch-sponsor-full":
+    "radial-gradient(120% 120% at 12% 18%, rgba(56,189,248,0.28), transparent 45%), linear-gradient(145deg,#0b1a28,#132a46,#111827)",
+  "local-watch-r6-spotlight":
+    "radial-gradient(120% 120% at 84% 18%, rgba(239,68,68,0.28), transparent 45%), linear-gradient(145deg,#1f1414,#2f1a1a,#111827)",
+  "local-watch-opera-gx":
+    "radial-gradient(120% 120% at 18% 80%, rgba(168,85,247,0.3), transparent 50%), linear-gradient(145deg,#180f22,#24143a,#111827)",
+  "local-watch-azure-build":
+    "radial-gradient(120% 120% at 82% 20%, rgba(14,165,233,0.3), transparent 48%), linear-gradient(145deg,#102033,#17314d,#111827)",
+  "local-play-sponsored-challenge":
+    "radial-gradient(120% 120% at 24% 26%, rgba(34,197,94,0.28), transparent 45%), linear-gradient(145deg,#0f241a,#173122,#111827)",
+};
+
 function progressPercent(progress: number, target: number) {
   if (target <= 0) {
     return 0;
@@ -85,6 +109,7 @@ export function OrbitQuestsView() {
   const [quests, setQuests] = useState<OrbitQuest[]>([]);
   const [progressRows, setProgressRows] = useState<OrbitQuestProgress[]>([]);
   const [sponsoredGate, setSponsoredGate] = useState<SponsoredGateState | null>(null);
+  const [questPlayerOpen, setQuestPlayerOpen] = useState(false);
 
   const progressByQuestId = useMemo(
     () =>
@@ -110,6 +135,21 @@ export function OrbitQuestsView() {
   const sponsoredGateMode = sponsoredGate?.mode ?? null;
   const sponsoredGateCompleted = Boolean(sponsoredGate?.completed);
   const sponsoredGateFailed = Boolean(sponsoredGate?.failed);
+  const sponsoredProgressPercent = useMemo(() => {
+    if (!sponsoredGate) {
+      return 0;
+    }
+    if (sponsoredGate.mode === "WATCH") {
+      return Math.min(
+        100,
+        ((SPONSORED_WATCH_SECONDS - sponsoredGate.secondsLeft) / SPONSORED_WATCH_SECONDS) * 100,
+      );
+    }
+    return Math.min(
+      100,
+      ((SPONSORED_PLAY_SECONDS - sponsoredGate.secondsLeft) / SPONSORED_PLAY_SECONDS) * 100,
+    );
+  }, [sponsoredGate]);
 
   const fetchQuestState = useCallback(async () => {
     setLoading(true);
@@ -270,6 +310,7 @@ export function OrbitQuestsView() {
       completed: false,
       failed: false,
     });
+    setQuestPlayerOpen(true);
   }
 
   function registerPlayTap() {
@@ -302,6 +343,7 @@ export function OrbitQuestsView() {
 
     await progressQuest(quest);
     setSponsoredGate(null);
+    setQuestPlayerOpen(false);
   }
 
   function openSponsorDestination(url: string | null) {
@@ -547,13 +589,27 @@ export function OrbitQuestsView() {
                 key={quest.id}
               >
                 <div
-                  className="h-28 border-b border-white/10"
+                  className="relative h-32 border-b border-white/10"
                   style={{
                     background:
+                      QUEST_CAMPAIGN_STYLES[quest.slug] ??
                       categoryBackground[quest.category] ??
                       "linear-gradient(140deg,#0b0d16,#1a1730)",
                   }}
-                />
+                >
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-100/90">
+                      {quest.sponsor_name ?? "Orbit Campaign"}
+                    </p>
+                    <p className="text-[11px] text-zinc-300">
+                      {quest.category === "WATCH"
+                        ? "Video Quest"
+                        : quest.category === "PLAY"
+                          ? "Play Quest"
+                          : "Daily Mission"}
+                    </p>
+                  </div>
+                </div>
                 <div className="space-y-3 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -577,6 +633,12 @@ export function OrbitQuestsView() {
                       Progress: {progressCount}/{targetCount}
                     </span>
                     <span>Type: {quest.category}</span>
+                    {quest.category === "WATCH" || quest.category === "PLAY" ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-cyan-300/30 bg-cyan-500/10 px-2 py-0.5 text-cyan-100">
+                        <Clock3 className="h-3 w-3" />
+                        Full completion required
+                      </span>
+                    ) : null}
                     {quest.sponsor_name ? <span>Sponsor: {quest.sponsor_name}</span> : null}
                   </div>
 
@@ -602,7 +664,13 @@ export function OrbitQuestsView() {
                       ) : (
                         <Sparkles className="h-4 w-4" />
                       )}
-                      {progressBusy ? "Processing..." : "Start / Continue"}
+                      {progressBusy
+                        ? "Processing..."
+                        : quest.category === "WATCH"
+                          ? "Start Video Quest"
+                          : quest.category === "PLAY"
+                            ? "Start Play Quest"
+                            : "Accept Quest"}
                     </Button>
                     <Button
                       className="rounded-full"
@@ -618,131 +686,22 @@ export function OrbitQuestsView() {
                   </div>
 
                   {sponsoredGate?.questId === quest.id ? (
-                    <div className="space-y-3 rounded-xl border border-amber-300/30 bg-amber-500/10 p-3">
-                      <p className="text-xs font-medium uppercase tracking-[0.14em] text-amber-100">
-                        Verification required for rewards
-                      </p>
-                      {sponsoredGate.mode === "WATCH" ? (
-                        <>
-                          <video
-                            autoPlay
-                            className="h-40 w-full rounded-lg border border-white/15 bg-black/30 object-cover"
-                            controls={false}
-                            muted
-                            onPlay={() =>
-                              setSponsoredGate((current) =>
-                                current && current.mode === "WATCH"
-                                  ? { ...current, pausedForFocusLoss: false }
-                                  : current,
-                              )
-                            }
-                            playsInline
-                            ref={watchVideoRef}
-                            src={resolveSponsoredVideoSource(quest)}
-                          />
-                          <div className="h-2 w-full overflow-hidden rounded-full bg-white/15">
-                            <div
-                              className="h-full rounded-full bg-amber-300 transition-all"
-                              style={{
-                                width: `${Math.min(
-                                  100,
-                                  ((SPONSORED_WATCH_SECONDS - sponsoredGate.secondsLeft) /
-                                    SPONSORED_WATCH_SECONDS) *
-                                    100,
-                                )}%`,
-                              }}
-                            />
-                          </div>
-                          <p className="text-xs text-amber-100">
-                            Watch until the timer completes. Remaining: {sponsoredGate.secondsLeft}s
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-xs text-amber-100">
-                            Complete the full partner flow: open sponsor page + tap target{" "}
-                            {SPONSORED_PLAY_TAPS} times before timer ends.
-                          </p>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                              className="rounded-full"
-                              disabled={!quest.sponsor_url}
-                              onClick={() => openSponsorDestination(quest.sponsor_url)}
-                              size="sm"
-                              type="button"
-                              variant="secondary"
-                            >
-                              Open partner game page
-                            </Button>
-                            <span className="text-xs text-amber-100">
-                              Partner page: {sponsoredGate.openedSponsor ? "Opened" : "Not opened"}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              className="rounded-full"
-                              disabled={
-                                sponsoredGate.completed ||
-                                sponsoredGate.failed ||
-                                sponsoredGate.secondsLeft <= 0
-                              }
-                              onClick={() => registerPlayTap()}
-                              size="sm"
-                              type="button"
-                              variant="secondary"
-                            >
-                              Tap target ({sponsoredGate.taps}/{SPONSORED_PLAY_TAPS})
-                            </Button>
-                            <span className="text-xs text-amber-100">
-                              Time left: {sponsoredGate.secondsLeft}s
-                            </span>
-                          </div>
-                        </>
-                      )}
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          className="rounded-full"
-                          disabled={!sponsoredGate.completed || sponsoredGate.failed || progressBusy}
-                          onClick={() => void completeSponsoredGate(quest)}
-                          size="sm"
-                          type="button"
-                        >
-                          Verify completion
-                        </Button>
-                        <Button
-                          className="rounded-full"
-                          onClick={() => setSponsoredGate(null)}
-                          size="sm"
-                          type="button"
-                          variant="ghost"
-                        >
-                          Cancel
-                        </Button>
-                        {quest.sponsor_url ? (
-                          <Button
-                            className="rounded-full"
-                            onClick={() => openSponsorDestination(quest.sponsor_url)}
-                            size="sm"
-                            type="button"
-                            variant="ghost"
-                          >
-                            Open sponsor page
-                          </Button>
-                        ) : null}
-                      </div>
-
-                      {sponsoredGate.failed ? (
-                        <p className="text-xs text-rose-200">
-                          Verification failed. Reward is blocked until full completion.
-                        </p>
-                      ) : null}
-                      {sponsoredGate.pausedForFocusLoss ? (
+                    <div className="rounded-xl border border-amber-300/30 bg-amber-500/10 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-xs text-amber-100">
-                          Progress paused because you left the quest screen/tab. Return and keep this
-                          screen focused to continue.
+                          Verification running in quest player.
                         </p>
-                      ) : null}
+                        <Button
+                          className="rounded-full"
+                          onClick={() => setQuestPlayerOpen(true)}
+                          size="sm"
+                          type="button"
+                          variant="secondary"
+                        >
+                          <PlayCircle className="h-4 w-4" />
+                          Open Quest Player
+                        </Button>
+                      </div>
                     </div>
                   ) : null}
 
@@ -767,6 +726,139 @@ export function OrbitQuestsView() {
           verification.
         </p>
       ) : null}
+
+      <Dialog
+        onOpenChange={(open) => {
+          setQuestPlayerOpen(open);
+          if (!open && sponsoredGate && !sponsoredGate.completed) {
+            setSponsoredGate(null);
+          }
+        }}
+        open={Boolean(activeSponsoredQuest && sponsoredGate && questPlayerOpen)}
+      >
+        <DialogContent className="max-w-4xl border-white/10 bg-[#090b14] text-zinc-100">
+          {activeSponsoredQuest && sponsoredGate ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center justify-between gap-2">
+                  <span>{activeSponsoredQuest.title}</span>
+                  <span className="rounded-full border border-emerald-300/35 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-100">
+                    +{activeSponsoredQuest.reward_starbits} Starbits
+                  </span>
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-3">
+                {sponsoredGate.mode === "WATCH" ? (
+                  <video
+                    autoPlay
+                    className="h-[320px] w-full rounded-xl border border-white/15 bg-black/30 object-cover"
+                    controls={false}
+                    muted
+                    onPlay={() =>
+                      setSponsoredGate((current) =>
+                        current && current.mode === "WATCH"
+                          ? { ...current, pausedForFocusLoss: false }
+                          : current,
+                      )
+                    }
+                    playsInline
+                    ref={watchVideoRef}
+                    src={resolveSponsoredVideoSource(activeSponsoredQuest)}
+                  />
+                ) : (
+                  <div className="rounded-xl border border-white/15 bg-black/30 p-4">
+                    <p className="text-sm text-zinc-200">
+                      Complete full verification flow:
+                    </p>
+                    <ul className="mt-2 space-y-1 text-xs text-zinc-300">
+                      <li>1) Open sponsor game page</li>
+                      <li>2) Finish interaction challenge before timer ends</li>
+                      <li>3) Claim reward</li>
+                    </ul>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button
+                        className="rounded-full"
+                        disabled={!activeSponsoredQuest.sponsor_url}
+                        onClick={() => openSponsorDestination(activeSponsoredQuest.sponsor_url)}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Open partner page
+                      </Button>
+                      <Button
+                        className="rounded-full"
+                        disabled={
+                          sponsoredGate.completed ||
+                          sponsoredGate.failed ||
+                          sponsoredGate.secondsLeft <= 0
+                        }
+                        onClick={() => registerPlayTap()}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
+                        Tap target ({sponsoredGate.taps}/{SPONSORED_PLAY_TAPS})
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="h-2 w-full overflow-hidden rounded-full bg-white/15">
+                  <div
+                    className="h-full rounded-full bg-amber-300 transition-all"
+                    style={{ width: `${sponsoredProgressPercent}%` }}
+                  />
+                </div>
+                <p className="text-xs text-zinc-300">
+                  Remaining: {sponsoredGate.secondsLeft}s ·{" "}
+                  {sponsoredGate.mode === "PLAY"
+                    ? sponsoredGate.openedSponsor
+                      ? "Partner page opened"
+                      : "Partner page not opened yet"
+                    : "Watch continuously until complete"}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    className="rounded-full"
+                    disabled={!sponsoredGate.completed || sponsoredGate.failed}
+                    onClick={() => void completeSponsoredGate(activeSponsoredQuest)}
+                    size="sm"
+                    type="button"
+                  >
+                    Claim Reward
+                  </Button>
+                  <Button
+                    className="rounded-full"
+                    onClick={() => {
+                      setSponsoredGate(null);
+                      setQuestPlayerOpen(false);
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                {sponsoredGate.pausedForFocusLoss ? (
+                  <p className="rounded-lg border border-amber-300/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                    Progress paused: you left this quest/tab. Keep quest player focused to continue.
+                  </p>
+                ) : null}
+                {sponsoredGate.failed ? (
+                  <p className="rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                    Verification failed. Complete all required steps for payout.
+                  </p>
+                ) : null}
+              </div>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       {error ? (
         <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">

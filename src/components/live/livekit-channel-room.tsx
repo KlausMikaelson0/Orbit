@@ -112,6 +112,7 @@ export function LivekitChannelRoom({
   const [loadingToken, setLoadingToken] = useState(true);
   const [roomError, setRoomError] = useState<string | null>(null);
   const [joined, setJoined] = useState(true);
+  const [fallbackMode, setFallbackMode] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<OrbitSubscriptionTier>("FREE");
   const [subscriptionStatus, setSubscriptionStatus] = useState<OrbitSubscriptionStatus | null>(
     null,
@@ -165,7 +166,10 @@ export function LivekitChannelRoom({
 
   useEffect(() => {
     if (!livekitUrl) {
-      setRoomError("NEXT_PUBLIC_LIVEKIT_URL is missing.");
+      setFallbackMode(true);
+      setRoomError(
+        "LiveKit link is not configured. Switched to local call mode so you can still join.",
+      );
       setLoadingToken(false);
       return;
     }
@@ -174,6 +178,7 @@ export function LivekitChannelRoom({
     setRoomError(null);
     setLoadingToken(true);
     setJoined(true);
+    setFallbackMode(false);
     setToken(undefined);
 
     const query = new URLSearchParams({
@@ -194,12 +199,15 @@ export function LivekitChannelRoom({
       })
       .then((payload) => {
         setToken(payload.token);
+        setFallbackMode(false);
       })
       .catch((error) => {
         if (abortController.signal.aborted) {
           return;
         }
-        setRoomError(error instanceof Error ? error.message : "Unable to connect.");
+        const message = error instanceof Error ? error.message : "Unable to connect.";
+        setRoomError(`${message} Switched to local call mode.`);
+        setFallbackMode(true);
       })
       .finally(() => {
         if (!abortController.signal.aborted) {
@@ -483,11 +491,12 @@ export function LivekitChannelRoom({
     return () => window.clearTimeout(timer);
   }, [soundboardNotice]);
 
-  if (!livekitUrl) {
+  if (fallbackMode) {
     return (
-      <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-center text-sm text-zinc-300">
-        Configure <code className="mx-1 rounded bg-black/40 px-1.5 py-0.5">NEXT_PUBLIC_LIVEKIT_URL</code> to enable voice/video channels.
-      </div>
+      <LocalCallFallbackRoom
+        channelType={channelType}
+        message={roomError}
+      />
     );
   }
 
@@ -533,7 +542,13 @@ export function LivekitChannelRoom({
         className="h-full w-full"
         connect={joined && Boolean(token)}
         onDisconnected={() => setJoined(false)}
-        onError={(error) => setRoomError(error.message)}
+        onError={(error) => {
+          const message = error.message;
+          setRoomError(message);
+          if (/credentials|unauthorized|identity mismatch|token|link|missing/i.test(message)) {
+            setFallbackMode(true);
+          }
+        }}
         serverUrl={livekitUrl}
         token={token}
         video={isVideoChannel}
@@ -1017,6 +1032,88 @@ function FloatingRoomControls({
           className="rounded-full"
           disabled={busy}
           onClick={() => void leaveRoom()}
+          size="icon"
+          type="button"
+          variant="destructive"
+        >
+          <PhoneOff className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+interface LocalCallFallbackRoomProps {
+  channelType: ChannelType;
+  message: string | null;
+}
+
+function LocalCallFallbackRoom({ channelType, message }: LocalCallFallbackRoomProps) {
+  const isVideo = channelType === "VIDEO";
+  const [joined, setJoined] = useState(true);
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [cameraEnabled, setCameraEnabled] = useState(isVideo);
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
+    if (joined) {
+      playOrbitCallJoinSound();
+      return;
+    }
+    playOrbitCallLeaveSound();
+  }, [joined]);
+
+  return (
+    <div className="relative h-full overflow-hidden rounded-2xl border border-white/10 bg-black/30 p-4">
+      <div className="mb-3 rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
+        {message ?? "Live link unavailable. You are in local call mode (single-user)."}
+      </div>
+
+      <div className="flex h-[calc(100%-4.5rem)] flex-col items-center justify-center rounded-2xl border border-white/10 bg-black/35">
+        <div className="rounded-full border border-white/15 bg-black/40 px-4 py-1.5 text-xs text-zinc-300">
+          {joined ? "In call (local mode)" : "Call ended"}
+        </div>
+        <div className="mt-4 rounded-2xl border border-white/10 bg-black/45 p-4 text-center">
+          <p className="text-sm font-semibold text-zinc-100">You can enter voice/video even alone</p>
+          <p className="mt-1 text-xs text-zinc-400">
+            This fallback keeps call UX active until LiveKit link is configured.
+          </p>
+          {isVideo && joined ? (
+            <div className="mt-3 h-36 w-56 rounded-xl border border-white/10 bg-gradient-to-br from-violet-500/20 via-cyan-500/10 to-black/30" />
+          ) : (
+            <div className="mt-3 h-16 w-56 rounded-xl border border-white/10 bg-black/35" />
+          )}
+        </div>
+      </div>
+
+      <div className="pointer-events-auto absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/15 bg-black/60 px-2 py-1.5 backdrop-blur">
+        <Button
+          className="rounded-full"
+          onClick={() => setMicEnabled((current) => !current)}
+          size="icon"
+          type="button"
+          variant={micEnabled ? "secondary" : "destructive"}
+        >
+          {micEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+        </Button>
+        {isVideo ? (
+          <Button
+            className="rounded-full"
+            onClick={() => setCameraEnabled((current) => !current)}
+            size="icon"
+            type="button"
+            variant={cameraEnabled ? "secondary" : "destructive"}
+          >
+            {cameraEnabled ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
+          </Button>
+        ) : null}
+        <Button
+          className="rounded-full"
+          onClick={() => setJoined((current) => !current)}
           size="icon"
           type="button"
           variant="destructive"
