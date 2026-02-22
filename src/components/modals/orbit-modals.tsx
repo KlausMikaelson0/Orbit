@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { SwipeDismissable } from "@/components/ui/swipe-dismissable";
 import { Textarea } from "@/components/ui/textarea";
 import { OrbitLanguagePicker } from "@/src/components/i18n/orbit-language-picker";
+import { OrbitChannelSettingsModal } from "@/src/components/modals/orbit-channel-settings-modal";
 import { OrbitServerHubModal } from "@/src/components/modals/orbit-server-hub-modal";
 import { useModal } from "@/src/hooks/use-modal";
 import { useOrbitLocale } from "@/src/hooks/use-orbit-locale";
@@ -32,6 +33,7 @@ import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-brow
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type {
   ChannelType,
+  MemberRole,
   OrbitInventoryItem,
   OrbitProfile,
   OrbitQuest,
@@ -59,6 +61,8 @@ interface OrbitModalsProps {
     serverId: string;
     name: string;
     type: ChannelType;
+    visibility?: "PUBLIC" | "PRIVATE";
+    allowedRoles?: MemberRole[];
   }) => Promise<ActionResult>;
   joinServerByInvite: (inviteCode: string) => Promise<ActionResult>;
 }
@@ -177,6 +181,12 @@ export function OrbitModals({
   const [serverTemplate, setServerTemplate] = useState<OrbitServerTemplateKey>("community");
   const [channelName, setChannelName] = useState("");
   const [channelType, setChannelType] = useState<ChannelType>("TEXT");
+  const [channelVisibility, setChannelVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
+  const [channelVisibleRoles, setChannelVisibleRoles] = useState<MemberRole[]>([
+    "ADMIN",
+    "MODERATOR",
+    "GUEST",
+  ]);
   const [inviteCode, setInviteCode] = useState("");
   const [loadingMfa, setLoadingMfa] = useState(false);
   const [mfaError, setMfaError] = useState<string | null>(null);
@@ -234,6 +244,7 @@ export function OrbitModals({
   const joinServerOpen = isOpen && type === "joinServer";
   const settingsOpen = isOpen && type === "settings";
   const serverHubOpen = isOpen && type === "serverHub";
+  const channelSettingsOpen = isOpen && type === "channelSettings";
 
   const modalServerId = useMemo(() => data.serverId ?? null, [data.serverId]);
   const ownedItemSlugs = useMemo(
@@ -261,6 +272,8 @@ export function OrbitModals({
     setServerTemplate("community");
     setChannelName("");
     setChannelType("TEXT");
+    setChannelVisibility("PUBLIC");
+    setChannelVisibleRoles(["ADMIN", "MODERATOR", "GUEST"]);
     setInviteCode("");
     setMfaError(null);
     setMfaSuccess(null);
@@ -1022,10 +1035,24 @@ export function OrbitModals({
 
     setSubmitting(true);
     setError(null);
+    const allowedRoles =
+      channelVisibility === "PRIVATE"
+        ? [...channelVisibleRoles]
+        : (["ADMIN", "MODERATOR", "GUEST"] as MemberRole[]);
+    if (!allowedRoles.includes("ADMIN")) {
+      allowedRoles.push("ADMIN");
+    }
+    if (channelVisibility === "PRIVATE" && !allowedRoles.length) {
+      setError("Select at least one role that can view this private channel.");
+      setSubmitting(false);
+      return;
+    }
     const result = await createChannel({
       serverId: modalServerId,
       name: channelName,
       type: channelType,
+      visibility: channelVisibility,
+      allowedRoles,
     });
 
     if (result.error) {
@@ -1050,6 +1077,18 @@ export function OrbitModals({
     }
 
     resetAndClose();
+  }
+
+  function toggleVisibleRole(role: MemberRole) {
+    setChannelVisibleRoles((current) => {
+      if (role === "ADMIN") {
+        return current;
+      }
+      if (current.includes(role)) {
+        return current.filter((item) => item !== role);
+      }
+      return [...current, role];
+    });
   }
 
   return (
@@ -1144,6 +1183,58 @@ export function OrbitModals({
                     {typeOption}
                   </Button>
                 ))}
+              </div>
+              <div className="space-y-2 rounded-xl border border-white/10 bg-black/25 p-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                  Visibility
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    className="rounded-full"
+                    onClick={() => {
+                      setChannelVisibility("PUBLIC");
+                      setChannelVisibleRoles(["ADMIN", "MODERATOR", "GUEST"]);
+                    }}
+                    size="sm"
+                    type="button"
+                    variant={channelVisibility === "PUBLIC" ? "default" : "secondary"}
+                  >
+                    Public channel
+                  </Button>
+                  <Button
+                    className="rounded-full"
+                    onClick={() => {
+                      setChannelVisibility("PRIVATE");
+                      setChannelVisibleRoles(["ADMIN", "MODERATOR"]);
+                    }}
+                    size="sm"
+                    type="button"
+                    variant={channelVisibility === "PRIVATE" ? "default" : "secondary"}
+                  >
+                    Private channel
+                  </Button>
+                </div>
+                {channelVisibility === "PRIVATE" ? (
+                  <div>
+                    <p className="mb-2 text-[11px] text-zinc-400">
+                      Choose roles that can view this channel:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {(["ADMIN", "MODERATOR", "GUEST"] as MemberRole[]).map((role) => (
+                        <Button
+                          className="rounded-full"
+                          key={role}
+                          onClick={() => toggleVisibleRole(role)}
+                          size="sm"
+                          type="button"
+                          variant={channelVisibleRoles.includes(role) ? "default" : "secondary"}
+                        >
+                          {role}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
               {error ? (
                 <p className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
@@ -1794,6 +1885,18 @@ export function OrbitModals({
           }
         }}
         open={serverHubOpen}
+        serverId={data.serverId ?? null}
+      />
+
+      <OrbitChannelSettingsModal
+        channelId={data.channelId ?? null}
+        initialSection={data.section === "PERMISSIONS" ? "PERMISSIONS" : "OVERVIEW"}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            onClose();
+          }
+        }}
+        open={channelSettingsOpen}
         serverId={data.serverId ?? null}
       />
     </>

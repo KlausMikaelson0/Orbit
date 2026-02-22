@@ -56,7 +56,7 @@ interface ChannelSidebarProps {
 
 export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarProps) {
   const { onOpen } = useModal();
-  const { canViewChannel, canManageServerRules } = useOrbitChannelPermissions();
+  const { canViewChannel, canManageChannel, canManageServerRules } = useOrbitChannelPermissions();
   const {
     activeView,
     servers,
@@ -203,15 +203,17 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
                   Orbit Lift
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    onOpen("createChannel", { serverId: activeServer.id });
-                    onNavigate?.();
-                  }}
-                >
-                  <Plus className="h-4 w-4" />
-                  Create channel
-                </DropdownMenuItem>
+                {canManageServerRules(activeServer.id) ? (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      onOpen("createChannel", { serverId: activeServer.id });
+                      onNavigate?.();
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create channel
+                  </DropdownMenuItem>
+                ) : null}
                 {canManageServerRules(activeServer.id) ? (
                   <DropdownMenuItem
                     onClick={() => {
@@ -240,7 +242,7 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
           <div className="flex items-center gap-1">
             <Button
               className="h-7 w-7 rounded-full"
-              disabled={!activeServerId}
+              disabled={!activeServerId || !canManageServerRules(activeServerId)}
               onClick={() => {
                 onOpen("createChannel", { serverId: activeServerId ?? undefined });
                 onNavigate?.();
@@ -326,29 +328,50 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
             ? visibleChannels.map((channel) => {
                 const Icon = channelTypeIcon[channel.type];
                 const active = channel.id === activeChannelId;
+                const canManageCurrentChannel = canManageChannel(channel);
 
                 return (
-                  <button
-                    className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-sm transition ${
-                      active
-                        ? "bg-violet-500/20 text-violet-100"
-                        : "text-zinc-300 hover:bg-white/[0.07]"
+                  <div
+                    className={`flex items-center gap-1 rounded-xl pr-1 ${
+                      active ? "bg-violet-500/20 text-violet-100" : "text-zinc-300 hover:bg-white/[0.07]"
                     }`}
                     key={channel.id}
-                    onClick={() => {
-                      setActiveChannel(channel.id);
-                      onNavigate?.();
-                    }}
-                    type="button"
                   >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{channel.name}</span>
-                    </span>
-                    <span className="text-[10px] uppercase tracking-wide text-zinc-500">
-                      {channelTypeLabel(channel.type)}
-                    </span>
-                  </button>
+                    <button
+                      className="flex min-w-0 flex-1 items-center justify-between px-2.5 py-2 text-left text-sm"
+                      onClick={() => {
+                        setActiveChannel(channel.id);
+                        onNavigate?.();
+                      }}
+                      type="button"
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{channel.name}</span>
+                      </span>
+                      <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+                        {channelTypeLabel(channel.type)}
+                      </span>
+                    </button>
+                    {canManageCurrentChannel ? (
+                      <Button
+                        className="h-7 w-7 rounded-lg"
+                        onClick={() => {
+                          onOpen("channelSettings", {
+                            serverId: channel.server_id,
+                            channelId: channel.id,
+                            section: "OVERVIEW",
+                          });
+                        }}
+                        size="icon"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Settings2 className="h-3.5 w-3.5" />
+                        <span className="sr-only">Channel settings</span>
+                      </Button>
+                    ) : null}
+                  </div>
                 );
               })
             : dmConversations.map((conversation) => {

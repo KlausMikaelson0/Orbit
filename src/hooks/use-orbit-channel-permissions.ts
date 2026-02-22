@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
+import {
+  ORBIT_LOCAL_PERMISSIONS_UPDATED_EVENT,
+  ORBIT_MEMBER_ROLES,
+  getOrbitDefaultChannelPermissionFlags,
+  readOrbitLocalChannelPermissionOverrideMap,
+} from "@/src/lib/orbit-channel-permissions-local";
 import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type {
@@ -21,37 +27,8 @@ interface ChannelPermissionState {
   canManage: boolean;
 }
 
-const ALL_ROLES: MemberRole[] = ["ADMIN", "MODERATOR", "GUEST"];
-
-const DEFAULT_ROLE_PERMISSION: Record<
-  MemberRole,
-  Pick<
-    OrbitChannelPermission,
-    "can_view" | "can_post" | "can_connect" | "can_manage"
-  >
-> = {
-  ADMIN: {
-    can_view: true,
-    can_post: true,
-    can_connect: true,
-    can_manage: true,
-  },
-  MODERATOR: {
-    can_view: true,
-    can_post: true,
-    can_connect: true,
-    can_manage: false,
-  },
-  GUEST: {
-    can_view: true,
-    can_post: true,
-    can_connect: true,
-    can_manage: false,
-  },
-};
-
 function rolePermissionFallback(role: MemberRole) {
-  return DEFAULT_ROLE_PERMISSION[role];
+  return getOrbitDefaultChannelPermissionFlags(role);
 }
 
 function canPostInChannelType(channelType: ChannelType) {
@@ -85,21 +62,24 @@ export function useOrbitChannelPermissions() {
 
   const buildLocalPermissionRows = useCallback(() => {
     const now = new Date().toISOString();
+    const localOverrides = readOrbitLocalChannelPermissionOverrideMap();
     const rows: OrbitChannelPermission[] = [];
     for (const serverId of serverIds) {
       const channels = channelsByServer[serverId] ?? [];
       for (const channel of channels) {
-        for (const role of ALL_ROLES) {
+        const overrideByRole = localOverrides[channel.id] ?? {};
+        for (const role of ORBIT_MEMBER_ROLES) {
           const defaults = rolePermissionFallback(role);
+          const override = overrideByRole[role];
           rows.push({
             id: `local-perm-${channel.id}-${role}`,
             server_id: serverId,
             channel_id: channel.id,
             role,
-            can_view: defaults.can_view,
-            can_post: defaults.can_post,
-            can_connect: defaults.can_connect,
-            can_manage: defaults.can_manage,
+            can_view: override?.can_view ?? defaults.can_view,
+            can_post: override?.can_post ?? defaults.can_post,
+            can_connect: override?.can_connect ?? defaults.can_connect,
+            can_manage: override?.can_manage ?? defaults.can_manage,
             created_by: profileId,
             created_at: now,
             updated_at: now,
@@ -143,6 +123,19 @@ export function useOrbitChannelPermissions() {
 
   useEffect(() => {
     void fetchPermissions();
+  }, [fetchPermissions]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const refreshPermissions = () => void fetchPermissions();
+    window.addEventListener(ORBIT_LOCAL_PERMISSIONS_UPDATED_EVENT, refreshPermissions);
+    window.addEventListener("storage", refreshPermissions);
+    return () => {
+      window.removeEventListener(ORBIT_LOCAL_PERMISSIONS_UPDATED_EVENT, refreshPermissions);
+      window.removeEventListener("storage", refreshPermissions);
+    };
   }, [fetchPermissions]);
 
   useEffect(() => {

@@ -5,11 +5,13 @@ export type OrbitModalType =
   | "createChannel"
   | "joinServer"
   | "settings"
-  | "serverHub";
+  | "serverHub"
+  | "channelSettings";
 
 interface OrbitModalData {
   serverId?: string;
-  section?: "OVERVIEW" | "LIFT";
+  channelId?: string;
+  section?: "OVERVIEW" | "LIFT" | "PERMISSIONS";
 }
 
 interface OrbitModalStore {

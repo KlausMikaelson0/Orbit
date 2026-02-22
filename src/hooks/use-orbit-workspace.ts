@@ -5,6 +5,12 @@ import type { User } from "@supabase/supabase-js";
 
 import { generateInviteCode } from "@/lib/utils";
 import {
+  ORBIT_MEMBER_ROLES,
+  clearOrbitLocalChannelPermissionOverrides,
+  getOrbitDefaultChannelPermissionFlags,
+  setOrbitLocalChannelPermissionOverrides,
+} from "@/src/lib/orbit-channel-permissions-local";
+import {
   ORBIT_LOCAL_PROFILE,
   getOrbitLocalChannels,
   getOrbitLocalDmConversations,
@@ -17,6 +23,7 @@ import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-brow
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type {
   ChannelType,
+  MemberRole,
   OrbitChannel,
   OrbitMember,
   OrbitProfile,
@@ -477,7 +484,52 @@ export function useOrbitWorkspace(user: User | null) {
       serverId: string;
       name: string;
       type: ChannelType;
+      visibility?: "PUBLIC" | "PRIVATE";
+      allowedRoles?: MemberRole[];
     }) => {
+      const resolveAllowedRoles = () => {
+        const explicit = (values.allowedRoles ?? []).filter((role): role is MemberRole =>
+          ORBIT_MEMBER_ROLES.includes(role),
+        );
+        if (explicit.length) {
+          return Array.from(new Set(["ADMIN", ...explicit])) as MemberRole[];
+        }
+        if (values.visibility === "PRIVATE") {
+          return ["ADMIN", "MODERATOR"] as MemberRole[];
+        }
+        return ["ADMIN", "MODERATOR", "GUEST"] as MemberRole[];
+      };
+      const allowedRoles = resolveAllowedRoles();
+      const hasCustomVisibility =
+        allowedRoles.length !== ORBIT_MEMBER_ROLES.length ||
+        !ORBIT_MEMBER_ROLES.every((role) => allowedRoles.includes(role));
+
+      const buildPermissionByRole = () =>
+        Object.fromEntries(
+          ORBIT_MEMBER_ROLES.map((role) => {
+            const defaults = getOrbitDefaultChannelPermissionFlags(role);
+            const visible = allowedRoles.includes(role);
+            return [
+              role,
+              {
+                can_view: visible,
+                can_post: visible ? defaults.can_post : false,
+                can_connect: visible ? defaults.can_connect : false,
+                can_manage: visible ? defaults.can_manage : false,
+              },
+            ];
+          }),
+        ) as Record<
+          MemberRole,
+          {
+            can_view: boolean;
+            can_post: boolean;
+            can_connect: boolean;
+            can_manage: boolean;
+          }
+        >;
+      const permissionByRole = buildPermissionByRole();
+
       if (!isSupabaseReady()) {
         const trimmedName = values.name.trim();
         if (!trimmedName) {
@@ -494,6 +546,11 @@ export function useOrbitWorkspace(user: User | null) {
           updated_at: now,
         };
         upsertChannel(channel);
+        if (hasCustomVisibility) {
+          setOrbitLocalChannelPermissionOverrides(channel.id, permissionByRole);
+        } else {
+          clearOrbitLocalChannelPermissionOverrides(channel.id);
+        }
         setActiveChannel(channel.id);
         return { data: channel } satisfies WorkspaceActionResult<OrbitChannel>;
       }
@@ -519,12 +576,37 @@ export function useOrbitWorkspace(user: User | null) {
         } satisfies WorkspaceActionResult;
       }
 
+      if (hasCustomVisibility) {
+        const permissionRows = ORBIT_MEMBER_ROLES.map((role) => {
+          const flags = permissionByRole[role];
+          return {
+            server_id: values.serverId,
+            channel_id: channel.id,
+            role,
+            can_view: flags.can_view,
+            can_post: flags.can_post,
+            can_connect: flags.can_connect,
+            can_manage: flags.can_manage,
+            created_by: user?.id ?? null,
+          };
+        });
+        const { error: permissionError } = await supabase
+          .from("channel_role_permissions")
+          .upsert(permissionRows, { onConflict: "channel_id,role" });
+
+        if (permissionError) {
+          return {
+            error: permissionError.message,
+          } satisfies WorkspaceActionResult;
+        }
+      }
+
       upsertChannel(channel as OrbitChannel);
       setActiveChannel(channel.id);
 
       return { data: channel as OrbitChannel } satisfies WorkspaceActionResult<OrbitChannel>;
     },
-    [setActiveChannel, supabase, upsertChannel],
+    [setActiveChannel, supabase, upsertChannel, user],
   );
 
   const joinServerByInvite = useCallback(

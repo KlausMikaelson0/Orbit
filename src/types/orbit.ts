@@ -71,6 +71,10 @@ export interface OrbitChannel {
   name: string;
   type: ChannelType;
   server_id: string;
+  topic?: string | null;
+  slowmode_seconds?: number;
+  is_age_restricted?: boolean;
+  hide_after_days?: number;
   created_at: string;
   updated_at: string;
 }
