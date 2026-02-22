@@ -97,8 +97,8 @@ export async function GET(request: Request) {
   const kind = parseMediaKind(requestUrl.searchParams.get("kind"));
   const mode = parseMode(requestUrl.searchParams.get("mode"), query);
   const limit = Math.min(
-    48,
-    Math.max(1, Number.parseInt(requestUrl.searchParams.get("limit") ?? "24", 10) || 24),
+    96,
+    Math.max(1, Number.parseInt(requestUrl.searchParams.get("limit") ?? "36", 10) || 36),
   );
 
   if (!apiKey) {

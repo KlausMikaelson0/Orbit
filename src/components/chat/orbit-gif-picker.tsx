@@ -205,7 +205,7 @@ export function OrbitGifPicker({
         searchParams.set("q", debouncedQuery);
       }
     }
-    searchParams.set("limit", "36");
+    searchParams.set("limit", "72");
 
     void fetch(`/api/giphy/search?${searchParams.toString()}`, {
       signal: abortController.signal,
@@ -258,7 +258,7 @@ export function OrbitGifPicker({
 
   const subtitle = useMemo(() => {
     if (activeTab === "ORBIT") {
-      return "Official Orbit GIF pack for your platform.";
+      return "Official Orbit GIF pack (hello, wave, reactions, and bot vibes).";
     }
     if (activeTab === "SERVER") {
       return "Custom GIF library for this server.";
