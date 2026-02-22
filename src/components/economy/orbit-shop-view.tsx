@@ -1020,7 +1020,19 @@ export function OrbitShopView() {
                     Neon profile cosmetics, bundles, and exclusive drops.
                   </p>
                 </div>
-                <Button className="rounded-full" type="button">
+                <Button
+                  className="rounded-full"
+                  onClick={() => {
+                    setTab("BROWSE");
+                    setBrowseCategory("SHOP_ALL");
+                    setSortBy("POPULAR");
+                    setQuery("glow");
+                    setSelectedThemes(["scifi", "gaming", "dark"]);
+                    setSelectedColors(["pink", "purple", "blue"]);
+                    setShowOnlyFilters([]);
+                  }}
+                  type="button"
+                >
                   Shop the Collection
                   <ArrowRight className="h-4 w-4" />
                 </Button>
@@ -1053,7 +1065,21 @@ export function OrbitShopView() {
                       <p className="text-xs text-zinc-200/85">
                         Cute cosmetic drop with avatar + profile banner.
                       </p>
-                      <Button className="rounded-full" size="sm" type="button" variant="secondary">
+                      <Button
+                        className="rounded-full"
+                        onClick={() => {
+                          setTab("BROWSE");
+                          setBrowseCategory("BUNDLES");
+                          setSortBy("POPULAR");
+                          setQuery("hunny");
+                          setSelectedThemes(["cute", "animals"]);
+                          setSelectedColors(["pink", "purple"]);
+                          setShowOnlyFilters(["BUNDLES"]);
+                        }}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
                         Take me there
                       </Button>
                     </div>
@@ -1065,7 +1091,21 @@ export function OrbitShopView() {
                       <p className="text-xs text-zinc-200/85">
                         Themed bundle and profile frame collection.
                       </p>
-                      <Button className="rounded-full" size="sm" type="button" variant="secondary">
+                      <Button
+                        className="rounded-full"
+                        onClick={() => {
+                          setTab("BROWSE");
+                          setBrowseCategory("BUNDLES");
+                          setSortBy("POPULAR");
+                          setQuery("lone");
+                          setSelectedThemes(["dark", "fantasy"]);
+                          setSelectedColors(["gray", "blue"]);
+                          setShowOnlyFilters(["BUNDLES", "ORBS_ELIGIBLE"]);
+                        }}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
                         Take me there
                       </Button>
                     </div>
@@ -1075,7 +1115,21 @@ export function OrbitShopView() {
                 <section className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-zinc-100">Jujutsu Kaisen</h3>
-                    <Button className="rounded-full" size="sm" type="button" variant="secondary">
+                    <Button
+                      className="rounded-full"
+                      onClick={() => {
+                        setTab("BROWSE");
+                        setBrowseCategory("SHOP_ALL");
+                        setSortBy("RARITY");
+                        setQuery("jujutsu");
+                        setSelectedThemes(["anime", "dark"]);
+                        setSelectedColors(["red", "purple", "blue"]);
+                        setShowOnlyFilters([]);
+                      }}
+                      size="sm"
+                      type="button"
+                      variant="secondary"
+                    >
                       Shop All Jujutsu Kaisen
                     </Button>
                   </div>

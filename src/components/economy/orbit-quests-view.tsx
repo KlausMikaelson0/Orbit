@@ -736,7 +736,11 @@ export function OrbitQuestsView() {
         }}
         open={Boolean(activeSponsoredQuest && sponsoredGate && questPlayerOpen)}
       >
-        <DialogContent className="max-w-4xl border-white/10 bg-[#090b14] text-zinc-100">
+        <DialogContent
+          className="max-w-4xl border-white/10 bg-[#090b14] text-zinc-100"
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
           {activeSponsoredQuest && sponsoredGate ? (
             <>
               <DialogHeader>

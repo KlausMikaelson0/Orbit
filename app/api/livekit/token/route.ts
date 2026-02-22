@@ -18,19 +18,19 @@ export async function GET(request: Request) {
 
   const requestUrl = new URL(request.url);
   const room = requestUrl.searchParams.get("room");
-  const identity = requestUrl.searchParams.get("identity");
-  const name = requestUrl.searchParams.get("name") ?? identity ?? "Orbit User";
+  const requestedIdentity = requestUrl.searchParams.get("identity")?.trim() ?? null;
+  const requestedName = requestUrl.searchParams.get("name")?.trim() ?? null;
 
-  if (!room || !identity) {
+  if (!room) {
     return NextResponse.json(
-      { error: "Missing room or identity." },
+      { error: "Missing room." },
       { status: 400 },
     );
   }
 
-  if (room.length > 180 || identity.length > 64) {
+  if (room.length > 180) {
     return NextResponse.json(
-      { error: "Invalid room or identity format." },
+      { error: "Invalid room format." },
       { status: 400 },
     );
   }
@@ -41,12 +41,11 @@ export async function GET(request: Request) {
   if (!authUserId) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
-  if (identity !== authUserId) {
-    return NextResponse.json(
-      { error: "Identity mismatch for token request." },
-      { status: 403 },
-    );
-  }
+
+  // Trust authenticated user identity from Supabase to avoid
+  // client-side state drift blocking the call join flow.
+  const identity = authUserId;
+  const name = requestedName || requestedIdentity || identity || "Orbit User";
 
   const token = new AccessToken(livekitApiKey, livekitApiSecret, {
     identity,
