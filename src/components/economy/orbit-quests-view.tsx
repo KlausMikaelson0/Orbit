@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Gift, Sparkles, Store, Trophy, Video } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ interface SponsoredGateState {
   secondsLeft: number;
   taps: number;
   openedSponsor: boolean;
+  pausedForFocusLoss: boolean;
   completed: boolean;
   failed: boolean;
 }
@@ -73,6 +74,7 @@ function progressPercent(progress: number, target: number) {
 
 export function OrbitQuestsView() {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
+  const watchVideoRef = useRef<HTMLVideoElement | null>(null);
   const setActiveShop = useOrbitNavStore((state) => state.setActiveShop);
   const [tab, setTab] = useState<QuestTab>("ALL");
   const [loading, setLoading] = useState(true);
@@ -184,15 +186,47 @@ export function OrbitQuestsView() {
     }
 
     const timer = window.setInterval(() => {
+      const canTrack =
+        document.visibilityState === "visible" && document.hasFocus();
+      if (!canTrack) {
+        watchVideoRef.current?.pause();
+      }
+
       setSponsoredGate((current) => {
         if (!current || current.completed || current.failed) {
           return current;
         }
+
+        if (!canTrack) {
+          return current.pausedForFocusLoss
+            ? current
+            : {
+                ...current,
+                pausedForFocusLoss: true,
+              };
+        }
+
+        if (current.mode === "WATCH") {
+          const video = watchVideoRef.current;
+          const videoIsPlaying = Boolean(
+            video && !video.paused && !video.ended && video.readyState >= 2,
+          );
+          if (!videoIsPlaying) {
+            return current.pausedForFocusLoss
+              ? {
+                  ...current,
+                  pausedForFocusLoss: false,
+                }
+              : current;
+          }
+        }
+
         if (current.secondsLeft <= 1) {
           if (current.mode === "WATCH") {
             return {
               ...current,
               secondsLeft: 0,
+              pausedForFocusLoss: false,
               completed: true,
             };
           }
@@ -201,6 +235,7 @@ export function OrbitQuestsView() {
           return {
             ...current,
             secondsLeft: 0,
+            pausedForFocusLoss: false,
             completed: finished && current.openedSponsor,
             failed: !(finished && current.openedSponsor),
           };
@@ -209,12 +244,13 @@ export function OrbitQuestsView() {
         return {
           ...current,
           secondsLeft: current.secondsLeft - 1,
+          pausedForFocusLoss: false,
         };
       });
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [sponsoredGate]);
+  }, [sponsoredGate?.completed, sponsoredGate?.failed, sponsoredGate?.questId]);
 
   function startSponsoredGate(quest: OrbitQuest) {
     const mode: SponsoredGateMode = quest.category === "PLAY" ? "PLAY" : "WATCH";
@@ -226,6 +262,7 @@ export function OrbitQuestsView() {
       secondsLeft: mode === "WATCH" ? SPONSORED_WATCH_SECONDS : SPONSORED_PLAY_SECONDS,
       taps: 0,
       openedSponsor: false,
+      pausedForFocusLoss: false,
       completed: false,
       failed: false,
     });
@@ -588,7 +625,15 @@ export function OrbitQuestsView() {
                             className="h-40 w-full rounded-lg border border-white/15 bg-black/30 object-cover"
                             controls={false}
                             muted
+                            onPlay={() =>
+                              setSponsoredGate((current) =>
+                                current && current.mode === "WATCH"
+                                  ? { ...current, pausedForFocusLoss: false }
+                                  : current,
+                              )
+                            }
                             playsInline
+                            ref={watchVideoRef}
                             src={resolveSponsoredVideoSource(quest)}
                           />
                           <div className="h-2 w-full overflow-hidden rounded-full bg-white/15">
@@ -686,6 +731,12 @@ export function OrbitQuestsView() {
                       {sponsoredGate.failed ? (
                         <p className="text-xs text-rose-200">
                           Verification failed. Reward is blocked until full completion.
+                        </p>
+                      ) : null}
+                      {sponsoredGate.pausedForFocusLoss ? (
+                        <p className="text-xs text-amber-100">
+                          Progress paused because you left the quest screen/tab. Return and keep this
+                          screen focused to continue.
                         </p>
                       ) : null}
                     </div>
