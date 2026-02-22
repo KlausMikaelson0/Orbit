@@ -166,6 +166,116 @@ values
     null,
     'PULSE',
     234
+  ),
+  (
+    'profile-banner-neon-glow-bundle',
+    'Neon Glow Bundle',
+    'Flux neon bundle with avatar and profile styling.',
+    'PROFILE_BANNER',
+    'LEGENDARY',
+    10990,
+    null,
+    'NEON',
+    235
+  ),
+  (
+    'profile-banner-drifting-glow-bundle',
+    'Drifting Glow Bundle',
+    'Blue/purple Flux bundle for profile identity.',
+    'PROFILE_BANNER',
+    'LEGENDARY',
+    10990,
+    null,
+    'DRIFT',
+    236
+  ),
+  (
+    'profile-banner-electric-aura-bundle',
+    'Electric Aura Bundle',
+    'Electric monochrome Flux profile bundle.',
+    'PROFILE_BANNER',
+    'LEGENDARY',
+    10990,
+    null,
+    'ELECTRIC',
+    237
+  ),
+  (
+    'avatar-frame-neon-glow',
+    'Neon Glow',
+    'Animated neon avatar ring.',
+    'AVATAR_FRAME',
+    'EPIC',
+    5590,
+    null,
+    'NEON',
+    238
+  ),
+  (
+    'avatar-frame-drifting-glow',
+    'Drifting Glow',
+    'Soft drifting glow ring for avatar.',
+    'AVATAR_FRAME',
+    'EPIC',
+    5590,
+    null,
+    'DRIFT',
+    239
+  ),
+  (
+    'avatar-frame-electric-aura',
+    'Electric Aura',
+    'Electric aura ring for premium profiles.',
+    'AVATAR_FRAME',
+    'EPIC',
+    5590,
+    null,
+    'AURA',
+    240
+  ),
+  (
+    'profile-banner-jujutsu-black-flash',
+    'Jujutsu: Black Flash',
+    'Jujutsu Kaisen inspired profile banner.',
+    'PROFILE_BANNER',
+    'EPIC',
+    3900,
+    null,
+    'BLACKFLASH',
+    241
+  ),
+  (
+    'profile-banner-jujutsu-six-eyes',
+    'Jujutsu: Six Eyes',
+    'Signature blue visual profile banner.',
+    'PROFILE_BANNER',
+    'EPIC',
+    3900,
+    null,
+    'SIXEYES',
+    242
+  ),
+  (
+    'profile-effect-jujutsu-cursed-mark',
+    'Jujutsu: Cursed Mark',
+    'Animated cursed energy profile effect.',
+    'PROFILE_EFFECT',
+    'EPIC',
+    4100,
+    null,
+    'CURSED',
+    243
+  ),
+  (
+    'avatar-frame-jujutsu-domain',
+    'Jujutsu: Domain Ring',
+    'Domain expansion themed avatar frame.',
+    'AVATAR_FRAME',
+    'EPIC',
+    4100,
+    null,
+    'DOMAIN',
+    244
   )
 on conflict (slug) do update
 set

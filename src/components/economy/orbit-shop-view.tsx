@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ArrowRight,
   Gem,
   Heart,
   Palette,
@@ -24,8 +25,8 @@ import {
   isOrbitEquippableCategory,
 } from "@/src/lib/orbit-store";
 import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
-import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import { getOrbitLocalStoreItems } from "@/src/lib/orbit-local-data";
+import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type {
   OrbitInventoryItem,
   OrbitProfile,
@@ -34,32 +35,194 @@ import type {
   OrbitStoreItem,
 } from "@/src/types/orbit";
 
-type ShopTab = "FEATURED" | "AVATAR" | "PROFILE" | "EFFECTS" | "ALL";
-type ShopSort = "POPULAR" | "PRICE_ASC" | "PRICE_DESC" | "NAME" | "RARITY";
+type ShopTab = "FEATURED" | "BROWSE" | "ORBS_EXCLUSIVE";
+type ShopSort = "RECENT" | "POPULAR" | "PRICE_ASC" | "PRICE_DESC" | "NAME" | "RARITY";
+type BrowseCategory =
+  | "SHOP_ALL"
+  | "AVATAR_DECORATIONS"
+  | "PROFILE_EFFECTS"
+  | "NAMEPLATES"
+  | "BUNDLES";
+type ShowOnlyFilter =
+  | "AVATAR_DECORATIONS"
+  | "PROFILE_EFFECTS"
+  | "NAMEPLATES"
+  | "BUNDLES"
+  | "ORBS_ELIGIBLE";
+type ColorFilterName =
+  | "purple"
+  | "blue"
+  | "green"
+  | "orange"
+  | "yellow"
+  | "red"
+  | "pink"
+  | "white"
+  | "gray";
+type ThemeFilterName =
+  | "anime"
+  | "gaming"
+  | "cute"
+  | "scifi"
+  | "food"
+  | "fantasy"
+  | "animals"
+  | "sports"
+  | "movies"
+  | "dark";
 
-const SHOP_TABS: Array<{ key: ShopTab; label: string }> = [
+interface ShopPresentationMeta {
+  colors: ColorFilterName[];
+  themes: ThemeFilterName[];
+  collection: "FLUX" | "JUJUTSU" | "GENERAL";
+  isBundle: boolean;
+}
+
+const SHOP_TAB_OPTIONS: Array<{ key: ShopTab; label: string }> = [
   { key: "FEATURED", label: "Featured" },
-  { key: "AVATAR", label: "Avatar" },
-  { key: "PROFILE", label: "Profile" },
-  { key: "EFFECTS", label: "Effects" },
-  { key: "ALL", label: "All Items" },
+  { key: "BROWSE", label: "Browse" },
+  { key: "ORBS_EXCLUSIVE", label: "Orbs Exclusive" },
 ];
+
 const SHOP_SORTS: Array<{ key: ShopSort; label: string }> = [
+  { key: "RECENT", label: "Recently Added" },
   { key: "POPULAR", label: "Popular" },
   { key: "PRICE_ASC", label: "Price: Low to High" },
   { key: "PRICE_DESC", label: "Price: High to Low" },
   { key: "NAME", label: "Name" },
   { key: "RARITY", label: "Rarity" },
 ];
+
+const BROWSE_OPTIONS: Array<{ key: BrowseCategory; label: string }> = [
+  { key: "SHOP_ALL", label: "Shop All" },
+  { key: "AVATAR_DECORATIONS", label: "Avatar Decorations" },
+  { key: "PROFILE_EFFECTS", label: "Profile Effects" },
+  { key: "NAMEPLATES", label: "Nameplates" },
+  { key: "BUNDLES", label: "Bundles" },
+];
+
+const SHOW_ONLY_FILTER_OPTIONS: Array<{ key: ShowOnlyFilter; label: string }> = [
+  { key: "AVATAR_DECORATIONS", label: "Avatar Decorations" },
+  { key: "PROFILE_EFFECTS", label: "Profile Effects" },
+  { key: "NAMEPLATES", label: "Nameplates" },
+  { key: "BUNDLES", label: "Bundles" },
+  { key: "ORBS_ELIGIBLE", label: "Orbs Eligible" },
+];
+
+const COLOR_FILTERS: Array<{ key: ColorFilterName; label: string; hex: string }> = [
+  { key: "purple", label: "Purple", hex: "#a855f7" },
+  { key: "blue", label: "Blue", hex: "#3b82f6" },
+  { key: "green", label: "Green", hex: "#22c55e" },
+  { key: "orange", label: "Orange", hex: "#f97316" },
+  { key: "yellow", label: "Yellow", hex: "#eab308" },
+  { key: "red", label: "Red", hex: "#ef4444" },
+  { key: "pink", label: "Pink", hex: "#ec4899" },
+  { key: "white", label: "White", hex: "#e4e4e7" },
+  { key: "gray", label: "Gray", hex: "#71717a" },
+];
+
+const THEME_FILTERS: Array<{ key: ThemeFilterName; label: string }> = [
+  { key: "anime", label: "Anime" },
+  { key: "gaming", label: "Gaming" },
+  { key: "cute", label: "Cute & Cozy" },
+  { key: "scifi", label: "Sci-Fi" },
+  { key: "food", label: "Food & Drinks" },
+  { key: "fantasy", label: "Fantasy" },
+  { key: "animals", label: "Animals & Pets" },
+  { key: "sports", label: "Sports" },
+  { key: "movies", label: "Movies & TV" },
+  { key: "dark", label: "Dark & Moody" },
+];
+
 const ORBS_EXCLUSIVE_MIN_PRICE = 3500;
 
 const CATEGORY_LABELS: Record<OrbitStoreCategory, string> = {
   BACKGROUND: "Background",
-  AVATAR_FRAME: "Avatar Frame",
-  PROFILE_BANNER: "Profile Banner",
-  PROFILE_EFFECT: "Profile Effect",
-  PROFILE_FLARE: "Profile Flare",
-  SFX_PACK: "SFX Pack",
+  AVATAR_FRAME: "Avatar Decorations",
+  PROFILE_BANNER: "Nameplates",
+  PROFILE_EFFECT: "Profile Effects",
+  PROFILE_FLARE: "Profile Effects",
+  SFX_PACK: "Bundles",
+};
+
+const ITEM_META_OVERRIDES: Record<string, Partial<ShopPresentationMeta>> = {
+  "profile-banner-neon-glow-bundle": {
+    colors: ["pink", "purple"],
+    themes: ["gaming", "scifi", "dark"],
+    collection: "FLUX",
+    isBundle: true,
+  },
+  "profile-banner-drifting-glow-bundle": {
+    colors: ["blue", "purple"],
+    themes: ["gaming", "scifi", "dark"],
+    collection: "FLUX",
+    isBundle: true,
+  },
+  "profile-banner-electric-aura-bundle": {
+    colors: ["blue", "gray", "purple"],
+    themes: ["scifi", "dark"],
+    collection: "FLUX",
+    isBundle: true,
+  },
+  "avatar-frame-neon-glow": {
+    colors: ["pink", "purple", "blue"],
+    themes: ["scifi", "gaming", "dark"],
+    collection: "FLUX",
+  },
+  "avatar-frame-drifting-glow": {
+    colors: ["blue", "purple", "green"],
+    themes: ["scifi", "gaming"],
+    collection: "FLUX",
+  },
+  "avatar-frame-electric-aura": {
+    colors: ["gray", "white", "purple"],
+    themes: ["scifi", "dark"],
+    collection: "FLUX",
+  },
+  "profile-banner-lone-wolf-bundle": {
+    colors: ["blue", "purple", "gray"],
+    themes: ["animals", "dark", "fantasy"],
+    collection: "GENERAL",
+    isBundle: true,
+  },
+  "profile-banner-hunny-bunnies-bundle": {
+    colors: ["pink", "purple", "blue"],
+    themes: ["cute", "animals"],
+    collection: "GENERAL",
+    isBundle: true,
+  },
+  "profile-banner-nevermore-bundle": {
+    colors: ["gray", "white", "purple"],
+    themes: ["dark", "fantasy"],
+    collection: "GENERAL",
+    isBundle: true,
+  },
+  "profile-banner-dark-roses-bundle": {
+    colors: ["pink", "gray", "purple"],
+    themes: ["dark", "fantasy"],
+    collection: "GENERAL",
+    isBundle: true,
+  },
+  "profile-banner-jujutsu-black-flash": {
+    colors: ["red", "gray", "blue"],
+    themes: ["anime", "dark"],
+    collection: "JUJUTSU",
+  },
+  "profile-banner-jujutsu-six-eyes": {
+    colors: ["blue", "white", "gray"],
+    themes: ["anime", "scifi"],
+    collection: "JUJUTSU",
+  },
+  "profile-effect-jujutsu-cursed-mark": {
+    colors: ["red", "purple", "gray"],
+    themes: ["anime", "dark", "fantasy"],
+    collection: "JUJUTSU",
+  },
+  "avatar-frame-jujutsu-domain": {
+    colors: ["purple", "blue", "red"],
+    themes: ["anime", "dark", "fantasy"],
+    collection: "JUJUTSU",
+  },
 };
 
 function rarityScore(rarity: string) {
@@ -81,9 +244,9 @@ function popularityScore(item: OrbitStoreItem) {
   const base =
     rarityScore(item.rarity) * 320 +
     Math.min(2400, Math.round(item.price_starbits * 0.18)) +
-    (item.name.toLowerCase().includes("bundle") ? 300 : 0);
+    (item.name.toLowerCase().includes("bundle") ? 320 : 0);
 
-  return base + Math.max(0, 550 - item.sort_order);
+  return base + Math.max(0, 1200 - item.sort_order);
 }
 
 function pseudoRandomForKey(value: string) {
@@ -93,19 +256,6 @@ function pseudoRandomForKey(value: string) {
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
-}
-
-function getRaritySwatches(rarity: string) {
-  switch (rarity.toUpperCase()) {
-    case "LEGENDARY":
-      return ["#f97316", "#ec4899", "#a855f7"];
-    case "EPIC":
-      return ["#8b5cf6", "#6366f1", "#22d3ee"];
-    case "RARE":
-      return ["#38bdf8", "#818cf8", "#60a5fa"];
-    default:
-      return ["#52525b", "#71717a", "#a1a1aa"];
-  }
 }
 
 function isOrbsExclusive(item: OrbitStoreItem) {
@@ -118,7 +268,33 @@ function isOrbsExclusive(item: OrbitStoreItem) {
   );
 }
 
+function isBundleItem(item: OrbitStoreItem) {
+  return (
+    item.name.toLowerCase().includes("bundle") ||
+    item.category === "SFX_PACK" ||
+    item.slug.includes("bundle")
+  );
+}
+
 function getPreviewStyle(item: OrbitStoreItem) {
+  if (item.slug.includes("neon-glow")) {
+    return {
+      background:
+        "radial-gradient(120% 120% at 18% 18%, rgba(244,63,94,0.35), transparent 50%), linear-gradient(145deg,#210a24 0%,#2c1b6e 58%,#111827 100%)",
+    };
+  }
+  if (item.slug.includes("drifting-glow")) {
+    return {
+      background:
+        "radial-gradient(120% 120% at 84% 24%, rgba(59,130,246,0.36), transparent 52%), linear-gradient(145deg,#0a1029 0%,#1d2b7a 55%,#111827 100%)",
+    };
+  }
+  if (item.slug.includes("electric-aura")) {
+    return {
+      background:
+        "radial-gradient(120% 120% at 50% 20%, rgba(148,163,184,0.35), transparent 52%), linear-gradient(145deg,#0f1220 0%,#2a2a3f 58%,#111827 100%)",
+    };
+  }
   if (item.slug.includes("nevermore")) {
     return {
       background:
@@ -147,6 +323,12 @@ function getPreviewStyle(item: OrbitStoreItem) {
     return {
       background:
         "radial-gradient(120% 120% at 20% 20%, rgba(96,165,250,0.34), transparent 46%), radial-gradient(130% 130% at 82% 76%, rgba(192,132,252,0.3), transparent 48%), linear-gradient(145deg,#0a1020 0%,#312e81 58%,#1f2937 100%)",
+    };
+  }
+  if (item.slug.includes("jujutsu")) {
+    return {
+      background:
+        "radial-gradient(120% 120% at 20% 20%, rgba(239,68,68,0.28), transparent 48%), linear-gradient(145deg,#1b0d0d 0%,#2f1a1a 50%,#111827 100%)",
     };
   }
 
@@ -190,11 +372,11 @@ function getPreviewText(item: OrbitStoreItem) {
     case "AVATAR_FRAME":
       return "Frame";
     case "PROFILE_BANNER":
-      return "Banner";
+      return "Nameplate";
     case "PROFILE_EFFECT":
       return "Effect";
     case "SFX_PACK":
-      return "SFX";
+      return "Bundle";
     case "PROFILE_FLARE":
       return "Flare";
     default:
@@ -202,8 +384,46 @@ function getPreviewText(item: OrbitStoreItem) {
   }
 }
 
+function getRaritySwatches(rarity: string) {
+  switch (rarity.toUpperCase()) {
+    case "LEGENDARY":
+      return ["#f97316", "#ec4899", "#a855f7"];
+    case "EPIC":
+      return ["#8b5cf6", "#6366f1", "#22d3ee"];
+    case "RARE":
+      return ["#38bdf8", "#818cf8", "#60a5fa"];
+    default:
+      return ["#52525b", "#71717a", "#a1a1aa"];
+  }
+}
+
 function formatCoinPrice(value: number) {
   return value.toLocaleString();
+}
+
+function resolveMeta(item: OrbitStoreItem): ShopPresentationMeta {
+  const override = ITEM_META_OVERRIDES[item.slug];
+  const defaultColors: ColorFilterName[] =
+    item.category === "AVATAR_FRAME"
+      ? ["purple", "blue"]
+      : item.category === "PROFILE_EFFECT"
+        ? ["pink", "purple"]
+        : item.category === "PROFILE_BANNER"
+          ? ["blue", "purple"]
+          : ["gray", "white"];
+  const defaultThemes: ThemeFilterName[] =
+    item.category === "PROFILE_EFFECT"
+      ? ["scifi", "gaming"]
+      : item.category === "AVATAR_FRAME"
+        ? ["gaming", "fantasy"]
+        : ["dark"];
+
+  return {
+    colors: override?.colors ?? defaultColors,
+    themes: override?.themes ?? defaultThemes,
+    collection: override?.collection ?? "GENERAL",
+    isBundle: override?.isBundle ?? isBundleItem(item),
+  };
 }
 
 export function OrbitShopView() {
@@ -217,7 +437,12 @@ export function OrbitShopView() {
   );
 
   const [tab, setTab] = useState<ShopTab>("FEATURED");
-  const [sortBy, setSortBy] = useState<ShopSort>("POPULAR");
+  const [browseCategory, setBrowseCategory] = useState<BrowseCategory>("SHOP_ALL");
+  const [sortBy, setSortBy] = useState<ShopSort>("RECENT");
+  const [showFiltersRail, setShowFiltersRail] = useState(true);
+  const [showOnlyFilters, setShowOnlyFilters] = useState<ShowOnlyFilter[]>([]);
+  const [selectedColors, setSelectedColors] = useState<ColorFilterName[]>([]);
+  const [selectedThemes, setSelectedThemes] = useState<ThemeFilterName[]>([]);
   const [shuffleSeed, setShuffleSeed] = useState<number>(0);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -231,91 +456,6 @@ export function OrbitShopView() {
   const ownedSlugs = useMemo(
     () => new Set(inventory.map((item) => item.item_slug)),
     [inventory],
-  );
-  const activeAvatarFrameItem = useMemo(
-    () =>
-      storeItems.find((item) => item.slug === profile?.active_avatar_frame_slug) ?? null,
-    [profile?.active_avatar_frame_slug, storeItems],
-  );
-  const activeProfileBannerItem = useMemo(
-    () =>
-      storeItems.find((item) => item.slug === profile?.active_profile_banner_slug) ?? null,
-    [profile?.active_profile_banner_slug, storeItems],
-  );
-  const activeProfileEffectItem = useMemo(
-    () =>
-      storeItems.find((item) => item.slug === profile?.active_profile_effect_slug) ?? null,
-    [profile?.active_profile_effect_slug, storeItems],
-  );
-
-  const visibleItems = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    const matchesQuery = (item: OrbitStoreItem) =>
-      !normalizedQuery ||
-      item.name.toLowerCase().includes(normalizedQuery) ||
-      item.description.toLowerCase().includes(normalizedQuery);
-
-    let rows = storeItems.filter(matchesQuery);
-
-    if (tab === "FEATURED") {
-      rows = rows.filter(
-        (item) =>
-          item.category === "BACKGROUND" ||
-          item.category === "AVATAR_FRAME" ||
-          item.category === "PROFILE_BANNER",
-      );
-    } else if (tab === "AVATAR") {
-      rows = rows.filter((item) => item.category === "AVATAR_FRAME");
-    } else if (tab === "PROFILE") {
-      rows = rows.filter(
-        (item) =>
-          item.category === "PROFILE_BANNER" || item.category === "PROFILE_FLARE",
-      );
-    } else if (tab === "EFFECTS") {
-      rows = rows.filter(
-        (item) => item.category === "PROFILE_EFFECT" || item.category === "SFX_PACK",
-      );
-    }
-
-    return rows;
-  }, [query, storeItems, tab]);
-
-  const sortedItems = useMemo(() => {
-    const rows = [...visibleItems];
-
-    if (sortBy === "PRICE_ASC") {
-      rows.sort((a, b) => a.price_starbits - b.price_starbits);
-    } else if (sortBy === "PRICE_DESC") {
-      rows.sort((a, b) => b.price_starbits - a.price_starbits);
-    } else if (sortBy === "NAME") {
-      rows.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sortBy === "RARITY") {
-      rows.sort((a, b) => rarityScore(b.rarity) - rarityScore(a.rarity));
-    } else {
-      rows.sort((a, b) => popularityScore(b) - popularityScore(a));
-    }
-
-    if (shuffleSeed > 0) {
-      rows.sort(
-        (a, b) =>
-          pseudoRandomForKey(`${a.slug}-${shuffleSeed}`) -
-          pseudoRandomForKey(`${b.slug}-${shuffleSeed}`),
-      );
-    }
-
-    return rows;
-  }, [shuffleSeed, sortBy, visibleItems]);
-
-  const popularPicks = useMemo(
-    () =>
-      [...sortedItems]
-        .sort((a, b) => popularityScore(b) - popularityScore(a))
-        .slice(0, 12),
-    [sortedItems],
-  );
-  const orbsExclusive = useMemo(
-    () => sortedItems.filter((item) => isOrbsExclusive(item)),
-    [sortedItems],
   );
 
   const activeEquippedCategories = useMemo(
@@ -348,7 +488,9 @@ export function OrbitShopView() {
         profile?.active_profile_banner_slug,
         profile?.active_profile_effect_slug,
       ].filter((value): value is string => Boolean(value));
-      setInventory(activeOwnedSlugs.map((itemSlug) => ({ item_slug: itemSlug, purchased_at: now })));
+      setInventory(
+        activeOwnedSlugs.map((itemSlug) => ({ item_slug: itemSlug, purchased_at: now })),
+      );
       setLoading(false);
       return;
     }
@@ -469,11 +611,7 @@ export function OrbitShopView() {
       if (profile) {
         setProfile(applyOrbitStoreEquipToProfile(profile as OrbitProfile, category, item));
       }
-      if (item) {
-        setSuccess(`${item.name} equipped.`);
-      } else {
-        setSuccess(`${CATEGORY_LABELS[category]} cleared.`);
-      }
+      setSuccess(item ? `${item.name} equipped.` : `${CATEGORY_LABELS[category]} cleared.`);
       setActionKey(null);
       return;
     }
@@ -504,14 +642,156 @@ export function OrbitShopView() {
     if (profile) {
       setProfile(applyOrbitStoreEquipToProfile(profile as OrbitProfile, category, item));
     }
-
-    if (item) {
-      setSuccess(`${item.name} equipped.`);
-    } else {
-      setSuccess(`${CATEGORY_LABELS[category]} cleared.`);
-    }
+    setSuccess(item ? `${item.name} equipped.` : `${CATEGORY_LABELS[category]} cleared.`);
     setActionKey(null);
   }
+
+  function toggleMultiValue<T extends string>(current: T[], value: T) {
+    if (current.includes(value)) {
+      return current.filter((item) => item !== value);
+    }
+    return [...current, value];
+  }
+
+  function matchBrowseCategory(item: OrbitStoreItem) {
+    if (browseCategory === "SHOP_ALL") {
+      return true;
+    }
+    if (browseCategory === "AVATAR_DECORATIONS") {
+      return item.category === "AVATAR_FRAME";
+    }
+    if (browseCategory === "PROFILE_EFFECTS") {
+      return item.category === "PROFILE_EFFECT" || item.category === "PROFILE_FLARE";
+    }
+    if (browseCategory === "NAMEPLATES") {
+      return item.category === "PROFILE_BANNER";
+    }
+    if (browseCategory === "BUNDLES") {
+      return isBundleItem(item);
+    }
+    return true;
+  }
+
+  function matchShowOnlyFilters(item: OrbitStoreItem) {
+    if (!showOnlyFilters.length) {
+      return true;
+    }
+    return showOnlyFilters.every((filterKey) => {
+      if (filterKey === "AVATAR_DECORATIONS") {
+        return item.category === "AVATAR_FRAME";
+      }
+      if (filterKey === "PROFILE_EFFECTS") {
+        return item.category === "PROFILE_EFFECT" || item.category === "PROFILE_FLARE";
+      }
+      if (filterKey === "NAMEPLATES") {
+        return item.category === "PROFILE_BANNER";
+      }
+      if (filterKey === "BUNDLES") {
+        return isBundleItem(item);
+      }
+      if (filterKey === "ORBS_ELIGIBLE") {
+        return isOrbsExclusive(item);
+      }
+      return true;
+    });
+  }
+
+  function matchColorAndTheme(item: OrbitStoreItem) {
+    const meta = resolveMeta(item);
+    if (selectedColors.length) {
+      const hasColor = selectedColors.some((color) => meta.colors.includes(color));
+      if (!hasColor) {
+        return false;
+      }
+    }
+    if (selectedThemes.length) {
+      const hasTheme = selectedThemes.some((theme) => meta.themes.includes(theme));
+      if (!hasTheme) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  const filteredItems = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    let rows = storeItems.filter((item) => {
+      if (!normalizedQuery) {
+        return true;
+      }
+      return (
+        item.name.toLowerCase().includes(normalizedQuery) ||
+        item.description.toLowerCase().includes(normalizedQuery)
+      );
+    });
+
+    if (tab === "BROWSE") {
+      rows = rows.filter(matchBrowseCategory);
+    }
+    if (tab === "ORBS_EXCLUSIVE") {
+      rows = rows.filter((item) => isOrbsExclusive(item));
+    }
+
+    rows = rows.filter((item) => matchShowOnlyFilters(item) && matchColorAndTheme(item));
+    return rows;
+  }, [
+    browseCategory,
+    query,
+    selectedColors,
+    selectedThemes,
+    showOnlyFilters,
+    storeItems,
+    tab,
+  ]);
+
+  const sortedItems = useMemo(() => {
+    const rows = [...filteredItems];
+    if (sortBy === "RECENT") {
+      rows.sort((a, b) => b.sort_order - a.sort_order);
+    } else if (sortBy === "POPULAR") {
+      rows.sort((a, b) => popularityScore(b) - popularityScore(a));
+    } else if (sortBy === "PRICE_ASC") {
+      rows.sort((a, b) => a.price_starbits - b.price_starbits);
+    } else if (sortBy === "PRICE_DESC") {
+      rows.sort((a, b) => b.price_starbits - a.price_starbits);
+    } else if (sortBy === "NAME") {
+      rows.sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      rows.sort((a, b) => rarityScore(b.rarity) - rarityScore(a.rarity));
+    }
+
+    if (shuffleSeed > 0) {
+      rows.sort(
+        (a, b) =>
+          pseudoRandomForKey(`${a.slug}-${shuffleSeed}`) -
+          pseudoRandomForKey(`${b.slug}-${shuffleSeed}`),
+      );
+    }
+    return rows;
+  }, [filteredItems, shuffleSeed, sortBy]);
+
+  const popularPicks = useMemo(
+    () =>
+      [...sortedItems]
+        .sort((a, b) => popularityScore(b) - popularityScore(a))
+        .slice(0, 8),
+    [sortedItems],
+  );
+
+  const fluxRows = useMemo(
+    () => sortedItems.filter((item) => resolveMeta(item).collection === "FLUX").slice(0, 8),
+    [sortedItems],
+  );
+
+  const jujutsuRows = useMemo(
+    () => sortedItems.filter((item) => resolveMeta(item).collection === "JUJUTSU").slice(0, 8),
+    [sortedItems],
+  );
+
+  const exclusiveRows = useMemo(
+    () => sortedItems.filter((item) => isOrbsExclusive(item)),
+    [sortedItems],
+  );
 
   function renderStoreCard(item: OrbitStoreItem, forceExclusiveBadge = false) {
     const owned = ownedSlugs.has(item.slug);
@@ -531,10 +811,7 @@ export function OrbitShopView() {
         className="overflow-hidden rounded-2xl border border-white/10 bg-black/35 transition hover:border-violet-300/35 hover:shadow-[0_0_0_1px_rgba(167,139,250,0.2)]"
         key={item.slug}
       >
-        <div
-          className="relative h-32 border-b border-white/10"
-          style={getPreviewStyle(item)}
-        >
+        <div className="relative h-32 border-b border-white/10" style={getPreviewStyle(item)}>
           {cardExclusive ? (
             <span className="absolute left-2 top-2 rounded-full border border-white/30 bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-100">
               Orbs Exclusive
@@ -558,9 +835,6 @@ export function OrbitShopView() {
               <p className="text-sm font-semibold text-zinc-100">{item.name}</p>
               <p className="line-clamp-2 text-xs text-zinc-300">{item.description}</p>
             </div>
-            <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-300">
-              {item.rarity}
-            </span>
           </div>
           <div className="flex items-center justify-between text-xs text-zinc-400">
             <span>{CATEGORY_LABELS[item.category]}</span>
@@ -611,91 +885,228 @@ export function OrbitShopView() {
                   : "Owned"}
             </Button>
           </div>
-          {!owned && !canAfford ? (
-            <p className="text-[11px] text-rose-300">Need more Starbits</p>
-          ) : null}
         </div>
       </article>
     );
   }
 
+  function renderGrid(items: OrbitStoreItem[], forceExclusiveBadge = false) {
+    if (!items.length) {
+      return (
+        <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
+          No items match your current filter.
+        </div>
+      );
+    }
+    return (
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {items.map((item) => renderStoreCard(item, forceExclusiveBadge))}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 pb-1">
-      <section className="overflow-hidden rounded-2xl border border-white/10 bg-black/25">
-        <div className="relative overflow-hidden px-5 py-5">
-          <div className="absolute inset-0 bg-[radial-gradient(120%_120%_at_10%_10%,rgba(217,70,239,0.38),transparent_48%),radial-gradient(140%_140%_at_84%_74%,rgba(56,189,248,0.25),transparent_55%),linear-gradient(140deg,#0c0d18_0%,#15103a_54%,#1b1030_100%)]" />
-          <div className="relative z-[1] flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.16em] text-zinc-300">Orbit Shop</p>
-              <h2 className="mt-1 text-2xl font-semibold text-white">Flux Collection</h2>
-              <p className="mt-1 text-sm text-zinc-300">
-                Avatar frames, profile banners, effects, and premium backgrounds.
-              </p>
-              {localMode ? (
-                <p className="mt-2 inline-flex rounded-full border border-amber-300/35 bg-amber-500/10 px-2.5 py-1 text-[10px] uppercase tracking-wide text-amber-100">
-                  Local rewards mode
-                </p>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-full border border-amber-300/35 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-100">
-                <Wallet className="mr-1 inline h-3.5 w-3.5" />
-                {(wallet?.starbits_balance ?? 0).toLocaleString()} Starbits
-              </span>
-            </div>
+      <section className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2 shadow-[0_12px_40px_rgba(0,0,0,0.25)]">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {SHOP_TAB_OPTIONS.map((option) => (
+              <Button
+                className="rounded-full"
+                key={option.key}
+                onClick={() => setTab(option.key)}
+                size="sm"
+                type="button"
+                variant={tab === option.key ? "default" : "secondary"}
+              >
+                {option.label}
+              </Button>
+            ))}
+            {tab === "BROWSE" ? (
+              <select
+                className="h-8 rounded-full border border-white/15 bg-black/35 px-3 text-xs text-zinc-200 outline-none"
+                onChange={(event) => setBrowseCategory(event.target.value as BrowseCategory)}
+                value={browseCategory}
+              >
+                {BROWSE_OPTIONS.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            ) : null}
           </div>
-
-          <div className="relative z-[1] mt-4 grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="rounded-2xl border border-white/10 bg-black/35 p-3">
-              <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
-                Equipped profile preview
-              </p>
-              <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-black/40">
-                <div
-                  className="h-20 border-b border-white/10"
-                  style={
-                    activeProfileBannerItem
-                      ? getPreviewStyle(activeProfileBannerItem)
-                      : {
-                          background:
-                            "linear-gradient(145deg, rgba(99,102,241,0.3), rgba(59,130,246,0.22), rgba(244,63,94,0.2))",
-                        }
-                  }
-                />
-                <div className="flex items-center gap-3 px-3 pb-3 pt-2">
-                  <div
-                    className="relative flex h-14 w-14 items-center justify-center rounded-full border border-white/15 bg-black/45 text-lg font-semibold text-zinc-100"
-                    style={
-                      activeAvatarFrameItem
-                        ? {
-                            boxShadow:
-                              "0 0 0 2px rgba(167,139,250,0.55), 0 0 0 6px rgba(167,139,250,0.18)",
-                          }
-                        : undefined
-                    }
-                  >
-                    {(profile?.full_name ?? profile?.username ?? "O").slice(0, 1).toUpperCase()}
-                    {activeProfileEffectItem ? (
-                      <span className="absolute -bottom-1.5 -right-1.5 rounded-full border border-violet-300/40 bg-violet-500/25 px-1.5 py-0.5 text-[10px] text-violet-100">
-                        FX
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-zinc-100">
-                      {profile?.full_name ?? profile?.username ?? "Orbit User"}
-                    </p>
-                    <p className="truncate text-xs text-zinc-300">
-                      {activeAvatarFrameItem?.name ?? "Default frame"} ·{" "}
-                      {activeProfileBannerItem?.name ?? "Default banner"} ·{" "}
-                      {activeProfileEffectItem?.name ?? "No effect"}
-                    </p>
-                  </div>
-                </div>
-              </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-3 py-1 text-xs text-zinc-300">
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span>Sort by</span>
+              <select
+                className="h-7 rounded-md border border-white/15 bg-black/40 px-2 text-xs text-zinc-200 outline-none"
+                onChange={(event) => setSortBy(event.target.value as ShopSort)}
+                value={sortBy}
+              >
+                {SHOP_SORTS.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
+            <Button
+              className="rounded-full"
+              onClick={() => setShowFiltersRail((current) => !current)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              {showFiltersRail ? "Hide Filters" : "Show Filters"}
+            </Button>
+            <Button
+              className="rounded-full"
+              onClick={() => setShuffleSeed(Date.now())}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Shuffle className="h-4 w-4" />
+              Shuffle!
+            </Button>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+              <Input
+                className="h-8 w-[220px] rounded-full border-white/15 bg-black/35 pl-8 text-xs"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search the Shop"
+                value={query}
+              />
+            </div>
+            <Button
+              className="rounded-full"
+              disabled={loading}
+              onClick={() => void fetchShopState()}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <Sparkles className="h-4 w-4" />
+              Refresh
+            </Button>
+            <span className="rounded-full border border-amber-300/35 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-100">
+              <Wallet className="mr-1 inline h-3.5 w-3.5" />
+              {(wallet?.starbits_balance ?? 0).toLocaleString()}
+            </span>
+          </div>
+        </div>
+      </section>
 
-            <div className="rounded-2xl border border-white/10 bg-black/35 p-3">
+      {loading ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-sm text-zinc-300">
+          Loading Orbit Shop...
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 gap-3">
+          <div className="min-h-0 flex-1 space-y-5 overflow-auto pr-1">
+            <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/30 px-5 py-5">
+              <div className="absolute inset-0 bg-[radial-gradient(120%_120%_at_10%_10%,rgba(217,70,239,0.4),transparent_48%),radial-gradient(140%_140%_at_84%_74%,rgba(56,189,248,0.3),transparent_55%),linear-gradient(140deg,#0b1025_0%,#1a1f64_54%,#18122f_100%)]" />
+              <div className="relative z-[1] flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.14em] text-zinc-200">FLUX</p>
+                  <h2 className="mt-1 text-2xl font-semibold text-white">Glow Collection</h2>
+                  <p className="mt-1 text-sm text-zinc-200/85">
+                    Neon profile cosmetics, bundles, and exclusive drops.
+                  </p>
+                </div>
+                <Button className="rounded-full" type="button">
+                  Shop the Collection
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </section>
+
+            {tab === "FEATURED" ? (
+              <>
+                <section className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-zinc-100">Orbs-Worthy Popular Picks</h3>
+                    <p className="text-xs text-zinc-400">Trending bundles and profile cosmetics</p>
+                  </div>
+                  {renderGrid(popularPicks)}
+                </section>
+
+                <section className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-zinc-100">Flux Neon Collection</h3>
+                    <p className="text-xs text-zinc-400">Neon glow cards and avatar rings</p>
+                  </div>
+                  {renderGrid(fluxRows)}
+                </section>
+
+                <section className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <article className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/30 p-4">
+                    <div className="absolute inset-0 bg-[radial-gradient(120%_120%_at_20%_20%,rgba(59,130,246,0.35),transparent_50%),linear-gradient(145deg,#1d2b78,#1f2937)]" />
+                    <div className="relative z-[1] space-y-3">
+                      <p className="text-sm font-semibold text-white">Love XP</p>
+                      <p className="text-xs text-zinc-200/85">
+                        Cute cosmetic drop with avatar + profile banner.
+                      </p>
+                      <Button className="rounded-full" size="sm" type="button" variant="secondary">
+                        Take me there
+                      </Button>
+                    </div>
+                  </article>
+                  <article className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/30 p-4">
+                    <div className="absolute inset-0 bg-[radial-gradient(120%_120%_at_80%_20%,rgba(244,63,94,0.32),transparent_50%),linear-gradient(145deg,#7f1d1d,#1f2937)]" />
+                    <div className="relative z-[1] space-y-3">
+                      <p className="text-sm font-semibold text-white">Year of the Horse</p>
+                      <p className="text-xs text-zinc-200/85">
+                        Themed bundle and profile frame collection.
+                      </p>
+                      <Button className="rounded-full" size="sm" type="button" variant="secondary">
+                        Take me there
+                      </Button>
+                    </div>
+                  </article>
+                </section>
+
+                <section className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-zinc-100">Jujutsu Kaisen</h3>
+                    <Button className="rounded-full" size="sm" type="button" variant="secondary">
+                      Shop All Jujutsu Kaisen
+                    </Button>
+                  </div>
+                  {renderGrid(jujutsuRows)}
+                </section>
+
+                <section className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-zinc-100">Orbs Exclusive</h3>
+                    <p className="text-xs text-zinc-400">High-tier premium cosmetics</p>
+                  </div>
+                  {renderGrid(exclusiveRows, true)}
+                </section>
+              </>
+            ) : tab === "ORBS_EXCLUSIVE" ? (
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-zinc-100">Orbs Exclusive Catalog</h3>
+                  <p className="text-xs text-zinc-400">Exclusive drops only</p>
+                </div>
+                {renderGrid(exclusiveRows, true)}
+              </section>
+            ) : (
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-zinc-100">Browse Catalog</h3>
+                  <p className="text-xs text-zinc-400">
+                    {BROWSE_OPTIONS.find((row) => row.key === browseCategory)?.label ?? "Shop All"}
+                  </p>
+                </div>
+                {renderGrid(sortedItems)}
+              </section>
+            )}
+
+            <section className="rounded-2xl border border-white/10 bg-black/20 p-3">
               <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Quick clear</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {activeEquippedCategories.length ? (
@@ -717,132 +1128,96 @@ export function OrbitShopView() {
                   <p className="text-xs text-zinc-400">No cosmetics equipped yet.</p>
                 )}
               </div>
-            </div>
+            </section>
           </div>
-        </div>
-      </section>
 
-      <section className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 shadow-[0_12px_40px_rgba(0,0,0,0.25)]">
-        <div className="flex items-center gap-2">
-          {SHOP_TABS.map((shopTab) => (
-            <Button
-              className="rounded-full"
-              key={shopTab.key}
-              onClick={() => setTab(shopTab.key)}
-              size="sm"
-              type="button"
-              variant={tab === shopTab.key ? "default" : "secondary"}
-            >
-              {shopTab.label}
-            </Button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-3 py-1 text-xs text-zinc-300">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span>Sort by</span>
-            <select
-              className="h-7 rounded-md border border-white/15 bg-black/40 px-2 text-xs text-zinc-200 outline-none"
-              onChange={(event) => setSortBy(event.target.value as ShopSort)}
-              value={sortBy}
-            >
-              {SHOP_SORTS.map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Button
-            className="rounded-full"
-            onClick={() => setShuffleSeed(Date.now())}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            <Shuffle className="h-4 w-4" />
-            Shuffle!
-          </Button>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
-            <Input
-              className="h-8 w-[220px] rounded-full border-white/15 bg-black/35 pl-8 text-xs"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search Orbit Shop..."
-              value={query}
-            />
-          </div>
-          <Button
-            className="rounded-full"
-            disabled={loading}
-            onClick={() => void fetchShopState()}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Sparkles className="h-4 w-4" />
-            Refresh
-          </Button>
-        </div>
-      </section>
+          {showFiltersRail ? (
+            <aside className="hidden w-[260px] shrink-0 rounded-2xl border border-white/10 bg-black/25 p-3 xl:block">
+              <div className="space-y-4">
+                <section className="space-y-2">
+                  <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Show only</p>
+                  <div className="space-y-1">
+                    {SHOW_ONLY_FILTER_OPTIONS.map((option) => {
+                      const active = showOnlyFilters.includes(option.key);
+                      return (
+                        <button
+                          className={`flex w-full items-center justify-between rounded-lg border px-2 py-1.5 text-xs transition ${
+                            active
+                              ? "border-violet-300/40 bg-violet-500/15 text-violet-100"
+                              : "border-white/10 bg-black/25 text-zinc-300 hover:border-white/20"
+                          }`}
+                          key={option.key}
+                          onClick={() =>
+                            setShowOnlyFilters((current) => toggleMultiValue(current, option.key))
+                          }
+                          type="button"
+                        >
+                          <span>{option.label}</span>
+                          <span className="text-[10px]">{active ? "ON" : "OFF"}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
 
-      {loading ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-sm text-zinc-300">
-          Loading Orbit Shop...
-        </div>
-      ) : (
-        <div className="min-h-0 flex-1 space-y-5 overflow-auto">
-          {tab === "FEATURED" ? (
-            <>
-              <section className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-zinc-100">Orbs-Worthy Popular Picks</h3>
-                  <p className="text-xs text-zinc-400">
-                    Curated cosmetic bundles and top profile styles.
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  {popularPicks.length ? (
-                    popularPicks.map((item) => renderStoreCard(item))
-                  ) : (
-                    <div className="col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
-                      No popular picks found for this filter.
-                    </div>
-                  )}
-                </div>
-              </section>
+                <section className="space-y-2">
+                  <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Color</p>
+                  <div className="flex flex-wrap gap-2">
+                    {COLOR_FILTERS.map((color) => {
+                      const active = selectedColors.includes(color.key);
+                      return (
+                        <button
+                          className={`h-6 w-6 rounded-full border transition ${
+                            active ? "border-white" : "border-white/20"
+                          }`}
+                          key={color.key}
+                          onClick={() =>
+                            setSelectedColors((current) => toggleMultiValue(current, color.key))
+                          }
+                          style={{ backgroundColor: color.hex }}
+                          title={color.label}
+                          type="button"
+                        />
+                      );
+                    })}
+                  </div>
+                </section>
 
-              <section className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-zinc-100">Orbs Exclusive</h3>
-                  <p className="text-xs text-zinc-400">
-                    High-tier drops and premium cosmetics.
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  {orbsExclusive.length ? (
-                    orbsExclusive.map((item) => renderStoreCard(item, true))
-                  ) : (
-                    <div className="col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
-                      No exclusive items available for this filter.
-                    </div>
-                  )}
-                </div>
-              </section>
-            </>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {sortedItems.map((item) => renderStoreCard(item))}
-              {!sortedItems.length ? (
-                <div className="col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
-                  No items match your current filter.
-                </div>
-              ) : null}
-            </div>
-          )}
+                <section className="space-y-2">
+                  <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Themes</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {THEME_FILTERS.map((theme) => {
+                      const active = selectedThemes.includes(theme.key);
+                      return (
+                        <button
+                          className={`rounded-full border px-2 py-1 text-[11px] transition ${
+                            active
+                              ? "border-violet-300/40 bg-violet-500/15 text-violet-100"
+                              : "border-white/10 bg-black/25 text-zinc-300 hover:border-white/20"
+                          }`}
+                          key={theme.key}
+                          onClick={() =>
+                            setSelectedThemes((current) => toggleMultiValue(current, theme.key))
+                          }
+                          type="button"
+                        >
+                          {theme.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              </div>
+            </aside>
+          ) : null}
         </div>
       )}
 
+      {localMode ? (
+        <p className="rounded-lg border border-amber-300/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          Local rewards mode is active. Apply Supabase migrations for shared shop catalog.
+        </p>
+      ) : null}
       {error ? (
         <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
           {error}
