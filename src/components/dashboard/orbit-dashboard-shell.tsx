@@ -169,6 +169,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
     servers,
   ]);
   const serverCount = servers.length;
+  const showMembersRail = activeView === "SERVER" && Boolean(activeServerId);
   const dashboardBackgroundStyle = useMemo<CSSProperties | undefined>(() => {
     const customBackground = profile?.active_background_css?.trim();
     if (!customBackground) {
@@ -370,14 +371,16 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
                 <Button className="rounded-full" onClick={() => void signOut()} size="icon" variant="ghost">
                   <LogOut className="h-4 w-4" />
                 </Button>
-                <Button
-                  className="rounded-full xl:hidden"
-                  onClick={() => setMobilePanelOpen("members", true)}
-                  size="icon"
-                  variant="ghost"
-                >
-                  <Users className="h-4 w-4" />
-                </Button>
+                {showMembersRail ? (
+                  <Button
+                    className="rounded-full lg:hidden"
+                    onClick={() => setMobilePanelOpen("members", true)}
+                    size="icon"
+                    variant="ghost"
+                  >
+                    <Users className="h-4 w-4" />
+                  </Button>
+                ) : null}
               </div>
             </header>
 
@@ -386,7 +389,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
             </div>
           </section>
 
-          <MembersSidebar user={session?.user ?? null} />
+          {showMembersRail ? <MembersSidebar user={session?.user ?? null} /> : null}
         </div>
 
         <Dialog
@@ -426,20 +429,22 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
           </DialogContent>
         </Dialog>
 
-        <Dialog
-          onOpenChange={(open) => setMobilePanelOpen("members", open)}
-          open={mobilePanels.members}
-        >
-          <DialogContent className="h-[86vh] max-w-[95vw] p-0 xl:hidden">
-            <SwipeDismissable
-              className="h-full"
-              direction="right"
-              onDismiss={() => setMobilePanelOpen("members", false)}
-            >
-              <MembersSidebar mobile user={session?.user ?? null} />
-            </SwipeDismissable>
-          </DialogContent>
-        </Dialog>
+        {showMembersRail ? (
+          <Dialog
+            onOpenChange={(open) => setMobilePanelOpen("members", open)}
+            open={mobilePanels.members}
+          >
+            <DialogContent className="h-[86vh] max-w-[95vw] p-0 lg:hidden">
+              <SwipeDismissable
+                className="h-full"
+                direction="right"
+                onDismiss={() => setMobilePanelOpen("members", false)}
+              >
+                <MembersSidebar mobile user={session?.user ?? null} />
+              </SwipeDismissable>
+            </DialogContent>
+          </Dialog>
+        ) : null}
 
         <OrbitModals
           createChannel={createChannel}

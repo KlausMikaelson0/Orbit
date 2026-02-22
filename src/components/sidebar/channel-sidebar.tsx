@@ -140,7 +140,7 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
   return (
     <aside
       className={`glass-panel h-full rounded-[1.75rem] border border-white/10 p-3 ${
-        mobile ? "w-full" : "w-[300px]"
+        mobile ? "w-full" : "w-[270px] xl:w-[300px]"
       }`}
     >
       <div className="mb-3 rounded-2xl border border-white/10 bg-black/25 p-3">

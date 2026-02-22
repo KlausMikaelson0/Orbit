@@ -87,7 +87,7 @@ export function MembersSidebar({ user, mobile = false }: MembersSidebarProps) {
   return (
     <aside
       className={`glass-panel h-full shrink-0 rounded-[1.75rem] border border-white/10 p-3 ${
-        mobile ? "w-full" : "hidden w-[320px] xl:block"
+        mobile ? "w-full" : "hidden w-[270px] lg:block xl:w-[320px]"
       }`}
     >
       <div className="mb-3 rounded-2xl border border-violet-400/30 bg-violet-500/10 p-3">
