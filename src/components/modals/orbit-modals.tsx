@@ -628,7 +628,7 @@ export function OrbitModals({
     setStoreItems((storeResult.data ?? []) as OrbitStoreItem[]);
     setInventory((inventoryResult.data ?? []) as OrbitInventoryItem[]);
     setLoadingCommerce(false);
-  }, [isLocalMode, profile?.active_background_slug, profile?.id, supabase]);
+  }, [isLocalMode, profile, supabase]);
 
   const fetchQuestState = useCallback(async () => {
     setLoadingQuests(true);
@@ -720,7 +720,7 @@ export function OrbitModals({
 
     setConnections((data ?? []) as OrbitProfileConnection[]);
     setLoadingConnections(false);
-  }, [isLocalMode, profile?.id, supabase]);
+  }, [isLocalMode, profile, supabase]);
 
   useEffect(() => {
     const existing = connectionsByProvider[selectedConnectionProvider];
