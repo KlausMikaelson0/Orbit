@@ -2,7 +2,19 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { Check, Gauge, Loader2, Sparkles, Store, Wallet } from "lucide-react";
+import {
+  Check,
+  Eye,
+  EyeOff,
+  Gamepad2,
+  Gauge,
+  Link2,
+  Loader2,
+  Sparkles,
+  Store,
+  Unplug,
+  Wallet,
+} from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
@@ -29,6 +41,11 @@ import {
   getOrbitLocalQuests,
   getOrbitLocalStoreItems,
 } from "@/src/lib/orbit-local-data";
+import {
+  applyOrbitStoreEquipToProfile,
+  getOrbitEquippedSlugForCategory,
+  isOrbitEquippableCategory,
+} from "@/src/lib/orbit-store";
 import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type {
@@ -40,8 +57,11 @@ import type {
   OrbitQuestActionType,
   OrbitQuestCategory,
   OrbitQuestProgress,
+  OrbitProfileConnection,
+  OrbitProfileConnectionProvider,
   OrbitProfileSubscription,
   OrbitProfileWallet,
+  OrbitStoreCategory,
   OrbitStoreItem,
   OrbitSubscriptionTier,
   OrbitServerTemplateKey,
@@ -96,9 +116,145 @@ const PULSE_PLANS: Array<{
   },
 ];
 
+const LOCAL_PROFILE_CONNECTIONS_KEY = "orbit_local_profile_connections_v1";
+
+interface OrbitConnectionProviderDefinition {
+  provider: OrbitProfileConnectionProvider;
+  label: string;
+  hint: string;
+  placeholder: string;
+  connectUrl: string;
+}
+
+const ORBIT_CONNECTION_PROVIDERS: OrbitConnectionProviderDefinition[] = [
+  {
+    provider: "STEAM",
+    label: "Steam",
+    hint: "Show your Steam profile in Orbit.",
+    placeholder: "https://steamcommunity.com/id/your-name",
+    connectUrl: "https://steamcommunity.com/",
+  },
+  {
+    provider: "TWITCH",
+    label: "Twitch",
+    hint: "Link your live channel identity.",
+    placeholder: "https://www.twitch.tv/your-channel",
+    connectUrl: "https://www.twitch.tv/",
+  },
+  {
+    provider: "YOUTUBE",
+    label: "YouTube",
+    hint: "Attach your creator/video profile.",
+    placeholder: "https://www.youtube.com/@your-channel",
+    connectUrl: "https://www.youtube.com/",
+  },
+  {
+    provider: "SPOTIFY",
+    label: "Spotify",
+    hint: "Display your music profile.",
+    placeholder: "https://open.spotify.com/user/your-id",
+    connectUrl: "https://open.spotify.com/",
+  },
+  {
+    provider: "XBOX",
+    label: "Xbox",
+    hint: "Connect your Xbox identity.",
+    placeholder: "https://www.xbox.com/play/user/your-gamertag",
+    connectUrl: "https://www.xbox.com/",
+  },
+  {
+    provider: "PLAYSTATION",
+    label: "PlayStation",
+    hint: "Connect your PSN identity.",
+    placeholder: "https://psnprofiles.com/your-name",
+    connectUrl: "https://www.playstation.com/",
+  },
+  {
+    provider: "RIOT",
+    label: "Riot",
+    hint: "Share your Riot account profile.",
+    placeholder: "https://www.riotgames.com/en",
+    connectUrl: "https://www.riotgames.com/",
+  },
+  {
+    provider: "EPIC",
+    label: "Epic",
+    hint: "Connect your Epic account profile.",
+    placeholder: "https://store.epicgames.com/",
+    connectUrl: "https://store.epicgames.com/",
+  },
+  {
+    provider: "TIKTOK",
+    label: "TikTok",
+    hint: "Display your social profile.",
+    placeholder: "https://www.tiktok.com/@your-handle",
+    connectUrl: "https://www.tiktok.com/",
+  },
+  {
+    provider: "GITHUB",
+    label: "GitHub",
+    hint: "Show your dev profile.",
+    placeholder: "https://github.com/your-name",
+    connectUrl: "https://github.com/",
+  },
+];
+
 interface DailyClaimWindow {
   canClaim: boolean;
   nextClaimAt: Date | null;
+}
+
+function normalizeConnectionUrl(rawValue: string) {
+  const value = rawValue.trim();
+  if (!value) {
+    return null;
+  }
+  const normalized = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  try {
+    return new URL(normalized).toString();
+  } catch {
+    return null;
+  }
+}
+
+function readLocalProfileConnections(profileId: string): OrbitProfileConnection[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+  const raw = window.localStorage.getItem(LOCAL_PROFILE_CONNECTIONS_KEY);
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as OrbitProfileConnection[];
+    return parsed.filter((row) => row.profile_id === profileId);
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalProfileConnections(
+  profileId: string,
+  rows: OrbitProfileConnection[],
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const raw = window.localStorage.getItem(LOCAL_PROFILE_CONNECTIONS_KEY);
+  let existing: OrbitProfileConnection[] = [];
+  if (raw) {
+    try {
+      existing = (JSON.parse(raw) as OrbitProfileConnection[]) ?? [];
+    } catch {
+      existing = [];
+    }
+  }
+  const keepOtherProfiles = existing.filter((row) => row.profile_id !== profileId);
+  window.localStorage.setItem(
+    LOCAL_PROFILE_CONNECTIONS_KEY,
+    JSON.stringify([...keepOtherProfiles, ...rows]),
+  );
 }
 
 function getDailyClaimWindow(lastClaimAt: string | null): DailyClaimWindow {
@@ -238,6 +394,15 @@ export function OrbitModals({
   const [questSuccess, setQuestSuccess] = useState<string | null>(null);
   const [quests, setQuests] = useState<OrbitQuest[]>([]);
   const [questProgressRows, setQuestProgressRows] = useState<OrbitQuestProgress[]>([]);
+  const [loadingConnections, setLoadingConnections] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [connectionSuccess, setConnectionSuccess] = useState<string | null>(null);
+  const [connectionActionKey, setConnectionActionKey] = useState<string | null>(null);
+  const [connections, setConnections] = useState<OrbitProfileConnection[]>([]);
+  const [selectedConnectionProvider, setSelectedConnectionProvider] =
+    useState<OrbitProfileConnectionProvider>("STEAM");
+  const [connectionDisplayName, setConnectionDisplayName] = useState("");
+  const [connectionProfileUrl, setConnectionProfileUrl] = useState("");
 
   const createServerOpen = isOpen && type === "createServer";
   const createChannelOpen = isOpen && type === "createChannel";
@@ -262,6 +427,20 @@ export function OrbitModals({
   const dailyClaimWindow = useMemo(
     () => getDailyClaimWindow(wallet?.last_daily_claim_at ?? null),
     [wallet?.last_daily_claim_at],
+  );
+  const connectionsByProvider = useMemo(
+    () =>
+      Object.fromEntries(connections.map((row) => [row.provider, row])) as Partial<
+        Record<OrbitProfileConnectionProvider, OrbitProfileConnection>
+      >,
+    [connections],
+  );
+  const selectedConnectionDefinition = useMemo(
+    () =>
+      ORBIT_CONNECTION_PROVIDERS.find(
+        (row) => row.provider === selectedConnectionProvider,
+      ) ?? ORBIT_CONNECTION_PROVIDERS[0],
+    [selectedConnectionProvider],
   );
 
   function resetAndClose() {
@@ -288,6 +467,12 @@ export function OrbitModals({
     setQuestActionKey(null);
     setQuestError(null);
     setQuestSuccess(null);
+    setConnectionError(null);
+    setConnectionSuccess(null);
+    setConnectionActionKey(null);
+    setSelectedConnectionProvider("STEAM");
+    setConnectionDisplayName("");
+    setConnectionProfileUrl("");
     onClose();
   }
 
@@ -368,16 +553,13 @@ export function OrbitModals({
         } satisfies OrbitProfileWallet;
       });
       setStoreItems(getOrbitLocalStoreItems());
-      setInventory((current) => {
-        const activeBackgroundSlug = profile?.active_background_slug;
-        if (!activeBackgroundSlug) {
-          return current;
-        }
-        if (current.some((row) => row.item_slug === activeBackgroundSlug)) {
-          return current;
-        }
-        return [...current, { item_slug: activeBackgroundSlug, purchased_at: now }];
-      });
+      const activeOwnedSlugs = [
+        profile?.active_background_slug,
+        profile?.active_avatar_frame_slug,
+        profile?.active_profile_banner_slug,
+        profile?.active_profile_effect_slug,
+      ].filter((value): value is string => Boolean(value));
+      setInventory(activeOwnedSlugs.map((itemSlug) => ({ item_slug: itemSlug, purchased_at: now })));
       setLoadingCommerce(false);
       return;
     }
@@ -500,6 +682,226 @@ export function OrbitModals({
     setQuestProgressRows((progressResult.data ?? []) as OrbitQuestProgress[]);
     setLoadingQuests(false);
   }, [isLocalMode, supabase]);
+
+  const fetchConnections = useCallback(async () => {
+    if (!profile?.id) {
+      setConnections([]);
+      return;
+    }
+
+    setLoadingConnections(true);
+    setConnectionError(null);
+
+    if (isLocalMode) {
+      const localRows = readLocalProfileConnections(profile.id).sort((a, b) =>
+        b.connected_at.localeCompare(a.connected_at),
+      );
+      setConnections(localRows);
+      setLoadingConnections(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("profile_connections")
+      .select("*")
+      .eq("profile_id", profile.id)
+      .order("connected_at", { ascending: false });
+
+    if (error) {
+      const missingTable = /profile_connections|does not exist/i.test(error.message);
+      setConnectionError(
+        missingTable
+          ? "Connections need Phase 15 migration on Supabase."
+          : error.message,
+      );
+      setLoadingConnections(false);
+      return;
+    }
+
+    setConnections((data ?? []) as OrbitProfileConnection[]);
+    setLoadingConnections(false);
+  }, [isLocalMode, profile?.id, supabase]);
+
+  useEffect(() => {
+    const existing = connectionsByProvider[selectedConnectionProvider];
+    if (existing) {
+      setConnectionDisplayName(existing.display_name);
+      setConnectionProfileUrl(existing.profile_url ?? "");
+      return;
+    }
+
+    setConnectionDisplayName(profile?.full_name ?? profile?.username ?? "");
+    setConnectionProfileUrl("");
+  }, [
+    connectionsByProvider,
+    profile?.full_name,
+    profile?.username,
+    selectedConnectionProvider,
+  ]);
+
+  async function upsertConnection(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!profile?.id) {
+      setConnectionError("Profile is not loaded.");
+      return;
+    }
+
+    const displayName = connectionDisplayName.trim();
+    if (displayName.length < 2) {
+      setConnectionError("Connection display name must be at least 2 characters.");
+      return;
+    }
+
+    const normalizedUrl = normalizeConnectionUrl(connectionProfileUrl);
+    if (connectionProfileUrl.trim() && !normalizedUrl) {
+      setConnectionError("Please enter a valid profile URL.");
+      return;
+    }
+    if (selectedConnectionProvider === "STEAM" && !normalizedUrl) {
+      setConnectionError("Steam connection requires a public Steam profile URL.");
+      return;
+    }
+
+    setConnectionActionKey(`save:${selectedConnectionProvider}`);
+    setConnectionError(null);
+    setConnectionSuccess(null);
+
+    if (isLocalMode) {
+      const now = new Date().toISOString();
+      const localRows = readLocalProfileConnections(profile.id);
+      const existing = localRows.find(
+        (row) => row.provider === selectedConnectionProvider,
+      );
+      const nextRows = [
+        ...localRows.filter((row) => row.provider !== selectedConnectionProvider),
+        {
+          id:
+            existing?.id ??
+            `local-connection-${selectedConnectionProvider.toLowerCase()}-${profile.id.slice(0, 6)}`,
+          profile_id: profile.id,
+          provider: selectedConnectionProvider,
+          external_id: existing?.external_id ?? null,
+          display_name: displayName,
+          profile_url: normalizedUrl,
+          is_visible_on_profile: existing?.is_visible_on_profile ?? true,
+          metadata: existing?.metadata ?? {},
+          connected_at: existing?.connected_at ?? now,
+          updated_at: now,
+        } satisfies OrbitProfileConnection,
+      ].sort((a, b) => b.connected_at.localeCompare(a.connected_at));
+
+      writeLocalProfileConnections(profile.id, nextRows);
+      setConnections(nextRows);
+      setConnectionSuccess(`${selectedConnectionDefinition.label} connected successfully.`);
+      setConnectionActionKey(null);
+      return;
+    }
+
+    const { error } = await supabase.from("profile_connections").upsert(
+      {
+        profile_id: profile.id,
+        provider: selectedConnectionProvider,
+        display_name: displayName,
+        profile_url: normalizedUrl,
+      },
+      { onConflict: "profile_id,provider" },
+    );
+
+    if (error) {
+      const missingTable = /profile_connections|does not exist/i.test(error.message);
+      setConnectionError(
+        missingTable
+          ? "Connections need Phase 15 migration on Supabase."
+          : error.message,
+      );
+      setConnectionActionKey(null);
+      return;
+    }
+
+    setConnectionSuccess(`${selectedConnectionDefinition.label} connected successfully.`);
+    await fetchConnections();
+    setConnectionActionKey(null);
+  }
+
+  async function removeConnection(provider: OrbitProfileConnectionProvider) {
+    if (!profile?.id) {
+      return;
+    }
+    setConnectionActionKey(`remove:${provider}`);
+    setConnectionError(null);
+    setConnectionSuccess(null);
+
+    if (isLocalMode) {
+      const localRows = readLocalProfileConnections(profile.id);
+      const nextRows = localRows.filter((row) => row.provider !== provider);
+      writeLocalProfileConnections(profile.id, nextRows);
+      setConnections(nextRows);
+      setConnectionSuccess("Connection removed.");
+      setConnectionActionKey(null);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("profile_connections")
+      .delete()
+      .eq("profile_id", profile.id)
+      .eq("provider", provider);
+
+    if (error) {
+      setConnectionError(error.message);
+      setConnectionActionKey(null);
+      return;
+    }
+
+    setConnectionSuccess("Connection removed.");
+    await fetchConnections();
+    setConnectionActionKey(null);
+  }
+
+  async function toggleConnectionVisibility(
+    provider: OrbitProfileConnectionProvider,
+    nextVisible: boolean,
+  ) {
+    if (!profile?.id) {
+      return;
+    }
+    setConnectionActionKey(`visibility:${provider}`);
+    setConnectionError(null);
+    setConnectionSuccess(null);
+
+    if (isLocalMode) {
+      const now = new Date().toISOString();
+      const localRows = readLocalProfileConnections(profile.id);
+      const nextRows = localRows.map((row) =>
+        row.provider === provider
+          ? {
+              ...row,
+              is_visible_on_profile: nextVisible,
+              updated_at: now,
+            }
+          : row,
+      );
+      writeLocalProfileConnections(profile.id, nextRows);
+      setConnections(nextRows);
+      setConnectionActionKey(null);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("profile_connections")
+      .update({ is_visible_on_profile: nextVisible })
+      .eq("profile_id", profile.id)
+      .eq("provider", provider);
+
+    if (error) {
+      setConnectionError(error.message);
+      setConnectionActionKey(null);
+      return;
+    }
+
+    await fetchConnections();
+    setConnectionActionKey(null);
+  }
 
   async function progressQuest(quest: OrbitQuest) {
     setQuestActionKey(`progress:${quest.slug}`);
@@ -832,8 +1234,13 @@ export function OrbitModals({
     setStoreActionKey(null);
   }
 
-  async function equipBackground(itemSlug: string | null) {
-    setStoreActionKey(`equip:${itemSlug ?? "default"}`);
+  async function equipStoreCategory(category: OrbitStoreCategory, itemSlug: string | null) {
+    if (!isOrbitEquippableCategory(category)) {
+      return;
+    }
+
+    const actionSuffix = itemSlug ?? `default-${category.toLowerCase()}`;
+    setStoreActionKey(`equip:${category}:${actionSuffix}`);
     setCommerceError(null);
     setCommerceSuccess(null);
 
@@ -842,23 +1249,42 @@ export function OrbitModals({
         const selectedItem = itemSlug
           ? storeItems.find((item) => item.slug === itemSlug)
           : null;
-        setProfile({
-          ...(profile as OrbitProfile),
-          active_background_slug: itemSlug,
-          active_background_css: selectedItem?.css_background ?? null,
-        });
+        setProfile(
+          applyOrbitStoreEquipToProfile(
+            profile as OrbitProfile,
+            category,
+            selectedItem ?? null,
+          ),
+        );
       }
-      setCommerceSuccess(itemSlug ? "Background equipped." : "Default background restored.");
+      setCommerceSuccess(
+        itemSlug
+          ? `${category.replace("_", " ").toLowerCase()} equipped.`
+          : `${category.replace("_", " ").toLowerCase()} cleared.`,
+      );
       setStoreActionKey(null);
       return;
     }
 
-    const { error } = await supabase.rpc("set_active_store_background", {
-      target_slug: itemSlug,
-    });
+    const rpcResult =
+      category === "BACKGROUND"
+        ? await supabase.rpc("set_active_store_background", {
+            target_slug: itemSlug,
+          })
+        : await supabase.rpc("set_active_store_cosmetic", {
+            target_category: category,
+            target_slug: itemSlug,
+          });
 
-    if (error) {
-      setCommerceError(error.message);
+    if (rpcResult.error) {
+      const missingFunction =
+        category !== "BACKGROUND" &&
+        /set_active_store_cosmetic|does not exist/i.test(rpcResult.error.message);
+      setCommerceError(
+        missingFunction
+          ? "Profile cosmetics need Phase 15 migration on Supabase."
+          : rpcResult.error.message,
+      );
       setStoreActionKey(null);
       return;
     }
@@ -867,14 +1293,20 @@ export function OrbitModals({
       const selectedItem = itemSlug
         ? storeItems.find((item) => item.slug === itemSlug)
         : null;
-      setProfile({
-        ...(profile as OrbitProfile),
-        active_background_slug: itemSlug,
-        active_background_css: selectedItem?.css_background ?? null,
-      });
+      setProfile(
+        applyOrbitStoreEquipToProfile(
+          profile as OrbitProfile,
+          category,
+          selectedItem ?? null,
+        ),
+      );
     }
 
-    setCommerceSuccess(itemSlug ? "Background equipped." : "Default background restored.");
+    setCommerceSuccess(
+      itemSlug
+        ? `${category.replace("_", " ").toLowerCase()} equipped.`
+        : `${category.replace("_", " ").toLowerCase()} cleared.`,
+    );
     setStoreActionKey(null);
   }
 
@@ -926,7 +1358,14 @@ export function OrbitModals({
     void fetchMfaState();
     void fetchCommerceState();
     void fetchQuestState();
-  }, [fetchCommerceState, fetchMfaState, fetchQuestState, settingsOpen]);
+    void fetchConnections();
+  }, [
+    fetchCommerceState,
+    fetchConnections,
+    fetchMfaState,
+    fetchQuestState,
+    settingsOpen,
+  ]);
 
   async function enrollTotp() {
     if (isLocalMode) {
@@ -1472,7 +1911,7 @@ export function OrbitModals({
                       Orbit Vault Store
                     </p>
                     <p className="text-sm text-zinc-200">
-                      Spend Starbits on backgrounds and upcoming cosmetics.
+                      Spend Starbits on backgrounds, avatar frames, profile banners, and effects.
                     </p>
                   </div>
                   <div className="flex items-center gap-2 rounded-full border border-amber-300/35 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-100">
@@ -1509,13 +1948,13 @@ export function OrbitModals({
                   {profile?.active_background_slug ? (
                     <Button
                       className="rounded-full"
-                      disabled={storeActionKey === "equip:default"}
-                      onClick={() => void equipBackground(null)}
+                      disabled={storeActionKey === "equip:BACKGROUND:default-background"}
+                      onClick={() => void equipStoreCategory("BACKGROUND", null)}
                       size="sm"
                       type="button"
                       variant="ghost"
                     >
-                      {storeActionKey === "equip:default" ? (
+                      {storeActionKey === "equip:BACKGROUND:default-background" ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : null}
                       Use default background
@@ -1536,10 +1975,12 @@ export function OrbitModals({
                     {storeItems.map((item) => {
                       const owned = ownedItemSlugs.has(item.slug);
                       const isBackground = item.category === "BACKGROUND";
+                      const isEquippable = isOrbitEquippableCategory(item.category);
                       const isEquipped =
-                        isBackground && profile?.active_background_slug === item.slug;
+                        isEquippable &&
+                        getOrbitEquippedSlugForCategory(profile, item.category) === item.slug;
                       const buyActionKey = `buy:${item.slug}`;
-                      const equipActionKey = `equip:${item.slug}`;
+                      const equipActionKey = `equip:${item.category}:${item.slug}`;
                       const isWorking =
                         storeActionKey === buyActionKey || storeActionKey === equipActionKey;
 
@@ -1577,12 +2018,12 @@ export function OrbitModals({
                               className="rounded-full"
                               disabled={
                                 isWorking ||
-                                (owned && !isBackground) ||
+                                (owned && !isEquippable) ||
                                 (!owned && (wallet?.starbits_balance ?? 0) < item.price_starbits)
                               }
                               onClick={() => {
-                                if (owned && isBackground) {
-                                  void equipBackground(item.slug);
+                                if (owned && isEquippable) {
+                                  void equipStoreCategory(item.category, item.slug);
                                   return;
                                 }
                                 if (!owned) {
@@ -1595,7 +2036,7 @@ export function OrbitModals({
                             >
                               {isWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                               {owned
-                                ? isBackground
+                                ? isEquippable
                                   ? isEquipped
                                     ? "Equipped"
                                     : "Equip"
@@ -1768,6 +2209,199 @@ export function OrbitModals({
                 {questSuccess ? (
                   <p className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
                     {questSuccess}
+                  </p>
+                ) : null}
+              </section>
+
+              <section className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Connections</p>
+                    <p className="text-sm text-zinc-200">
+                      Link external accounts like Steam so they appear on your profile.
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/35 bg-cyan-500/12 px-2.5 py-1 text-[10px] uppercase tracking-wide text-cyan-100">
+                    <Link2 className="h-3.5 w-3.5" />
+                    Steam + Social
+                  </span>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {ORBIT_CONNECTION_PROVIDERS.map((providerDef) => {
+                    const linked = connectionsByProvider[providerDef.provider];
+                    const selected = selectedConnectionProvider === providerDef.provider;
+                    return (
+                      <Button
+                        className="h-auto justify-between rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-left"
+                        key={providerDef.provider}
+                        onClick={() => setSelectedConnectionProvider(providerDef.provider)}
+                        type="button"
+                        variant={selected ? "default" : "secondary"}
+                      >
+                        <span className="flex items-center gap-2">
+                          {providerDef.provider === "STEAM" ? (
+                            <Gamepad2 className="h-4 w-4" />
+                          ) : (
+                            <Link2 className="h-4 w-4" />
+                          )}
+                          <span className="text-xs">{providerDef.label}</span>
+                        </span>
+                        {linked ? (
+                          <span className="rounded-full border border-emerald-300/35 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-100">
+                            Linked
+                          </span>
+                        ) : (
+                          <span className="rounded-full border border-white/20 bg-white/[0.04] px-2 py-0.5 text-[10px] text-zinc-300">
+                            Add
+                          </span>
+                        )}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                <form
+                  className="space-y-2 rounded-xl border border-white/10 bg-black/30 p-3"
+                  onSubmit={(event) => void upsertConnection(event)}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                      {selectedConnectionDefinition.label} connection
+                    </p>
+                    <a
+                      className="text-[11px] text-cyan-200 underline-offset-2 hover:underline"
+                      href={selectedConnectionDefinition.connectUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Open {selectedConnectionDefinition.label}
+                    </a>
+                  </div>
+                  <p className="text-xs text-zinc-400">{selectedConnectionDefinition.hint}</p>
+                  <Input
+                    className="h-9"
+                    onChange={(event) => setConnectionDisplayName(event.target.value)}
+                    placeholder="Display name"
+                    value={connectionDisplayName}
+                  />
+                  <Input
+                    className="h-9"
+                    onChange={(event) => setConnectionProfileUrl(event.target.value)}
+                    placeholder={selectedConnectionDefinition.placeholder}
+                    value={connectionProfileUrl}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      className="rounded-full"
+                      disabled={connectionActionKey === `save:${selectedConnectionProvider}`}
+                      size="sm"
+                      type="submit"
+                    >
+                      {connectionActionKey === `save:${selectedConnectionProvider}` ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Link2 className="h-4 w-4" />
+                      )}
+                      Save connection
+                    </Button>
+                    {selectedConnectionProvider === "STEAM" ? (
+                      <p className="text-[11px] text-zinc-400">
+                        Steam is available for all users. Add your public profile URL.
+                      </p>
+                    ) : null}
+                  </div>
+                </form>
+
+                {loadingConnections ? (
+                  <p className="text-sm text-zinc-300">Loading connections...</p>
+                ) : connections.length ? (
+                  <div className="space-y-2">
+                    {connections.map((connection) => {
+                      const visibilityBusy =
+                        connectionActionKey === `visibility:${connection.provider}`;
+                      const removeBusy = connectionActionKey === `remove:${connection.provider}`;
+                      return (
+                        <article
+                          className="space-y-2 rounded-xl border border-white/10 bg-black/30 p-3"
+                          key={connection.id}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-semibold text-zinc-100">
+                                {connection.display_name}
+                              </p>
+                              <p className="text-xs text-zinc-400">
+                                {connection.provider} · connected{" "}
+                                {new Date(connection.connected_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {connection.profile_url ? (
+                                <a
+                                  className="text-xs text-cyan-200 underline-offset-2 hover:underline"
+                                  href={connection.profile_url}
+                                  rel="noreferrer"
+                                  target="_blank"
+                                >
+                                  Open profile
+                                </a>
+                              ) : null}
+                              <Button
+                                className="rounded-full"
+                                disabled={visibilityBusy}
+                                onClick={() =>
+                                  void toggleConnectionVisibility(
+                                    connection.provider,
+                                    !connection.is_visible_on_profile,
+                                  )
+                                }
+                                size="sm"
+                                type="button"
+                                variant="secondary"
+                              >
+                                {connection.is_visible_on_profile ? (
+                                  <Eye className="h-4 w-4" />
+                                ) : (
+                                  <EyeOff className="h-4 w-4" />
+                                )}
+                                {connection.is_visible_on_profile ? "Visible" : "Hidden"}
+                              </Button>
+                              <Button
+                                className="rounded-full"
+                                disabled={removeBusy}
+                                onClick={() => void removeConnection(connection.provider)}
+                                size="sm"
+                                type="button"
+                                variant="ghost"
+                              >
+                                {removeBusy ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Unplug className="h-4 w-4" />
+                                )}
+                                Remove
+                              </Button>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-zinc-400">
+                    No accounts connected yet. Link Steam or other providers above.
+                  </p>
+                )}
+
+                {connectionError ? (
+                  <p className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                    {connectionError}
+                  </p>
+                ) : null}
+                {connectionSuccess ? (
+                  <p className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                    {connectionSuccess}
                   </p>
                 ) : null}
               </section>

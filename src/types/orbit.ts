@@ -50,6 +50,9 @@ export interface OrbitProfile {
   avatar_url: string | null;
   active_background_slug?: string | null;
   active_background_css?: string | null;
+  active_avatar_frame_slug?: string | null;
+  active_profile_banner_slug?: string | null;
+  active_profile_effect_slug?: string | null;
   performance_mode?: boolean | null;
   created_at: string;
   updated_at: string;
@@ -289,7 +292,13 @@ export interface OrbitProfileWallet {
   updated_at: string;
 }
 
-export type OrbitStoreCategory = "BACKGROUND" | "PROFILE_FLARE" | "SFX_PACK";
+export type OrbitStoreCategory =
+  | "BACKGROUND"
+  | "PROFILE_FLARE"
+  | "SFX_PACK"
+  | "AVATAR_FRAME"
+  | "PROFILE_BANNER"
+  | "PROFILE_EFFECT";
 
 export interface OrbitStoreItem {
   slug: string;
@@ -309,6 +318,31 @@ export interface OrbitStoreItem {
 export interface OrbitInventoryItem {
   item_slug: string;
   purchased_at: string;
+}
+
+export type OrbitProfileConnectionProvider =
+  | "STEAM"
+  | "TWITCH"
+  | "YOUTUBE"
+  | "SPOTIFY"
+  | "XBOX"
+  | "PLAYSTATION"
+  | "RIOT"
+  | "EPIC"
+  | "TIKTOK"
+  | "GITHUB";
+
+export interface OrbitProfileConnection {
+  id: string;
+  profile_id: string;
+  provider: OrbitProfileConnectionProvider;
+  external_id: string | null;
+  display_name: string;
+  profile_url: string | null;
+  is_visible_on_profile: boolean;
+  metadata: Record<string, unknown>;
+  connected_at: string;
+  updated_at: string;
 }
 
 export interface OrbitQuest {

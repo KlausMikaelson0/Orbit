@@ -21,20 +21,34 @@ interface SponsoredGateState {
   mode: SponsoredGateMode;
   secondsLeft: number;
   taps: number;
+  openedSponsor: boolean;
   completed: boolean;
   failed: boolean;
 }
 
-const SPONSORED_WATCH_SECONDS = 20;
-const SPONSORED_PLAY_SECONDS = 25;
-const SPONSORED_PLAY_TAPS = 14;
+const SPONSORED_WATCH_SECONDS = 36;
+const SPONSORED_PLAY_SECONDS = 42;
+const SPONSORED_PLAY_TAPS = 18;
 const SPONSORED_DEMO_VIDEO_URL =
   "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
+const SPONSORED_VIDEO_BY_SLUG: Record<string, string> = {
+  "local-watch-sponsor-full": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+  "local-watch-r6-spotlight": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+  "local-watch-opera-gx": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+  "local-watch-azure-build": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+  "sponsor-video-winds-meet": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+  "sponsor-video-r6-siege": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+  "sponsor-video-opera-gx": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+  "sponsor-video-azure-build": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+};
 
 function resolveSponsoredVideoSource(quest: OrbitQuest) {
   const candidate = quest.sponsor_url?.trim() ?? "";
   if (candidate && /\.mp4($|\?)/i.test(candidate)) {
     return candidate;
+  }
+  if (SPONSORED_VIDEO_BY_SLUG[quest.slug]) {
+    return SPONSORED_VIDEO_BY_SLUG[quest.slug];
   }
   return SPONSORED_DEMO_VIDEO_URL;
 }
@@ -187,8 +201,8 @@ export function OrbitQuestsView() {
           return {
             ...current,
             secondsLeft: 0,
-            completed: finished,
-            failed: !finished,
+            completed: finished && current.openedSponsor,
+            failed: !(finished && current.openedSponsor),
           };
         }
 
@@ -211,6 +225,7 @@ export function OrbitQuestsView() {
       mode,
       secondsLeft: mode === "WATCH" ? SPONSORED_WATCH_SECONDS : SPONSORED_PLAY_SECONDS,
       taps: 0,
+      openedSponsor: false,
       completed: false,
       failed: false,
     });
@@ -225,7 +240,7 @@ export function OrbitQuestsView() {
       return {
         ...current,
         taps: nextTaps,
-        completed: nextTaps >= SPONSORED_PLAY_TAPS,
+        completed: nextTaps >= SPONSORED_PLAY_TAPS && current.openedSponsor,
       };
     });
   }
@@ -239,9 +254,32 @@ export function OrbitQuestsView() {
       setError("Task not fully completed. No Starbits awarded.");
       return;
     }
+    if (sponsoredGate.mode === "PLAY" && !sponsoredGate.openedSponsor) {
+      setError("Open the partner game page to finish verification.");
+      return;
+    }
 
     await progressQuest(quest);
     setSponsoredGate(null);
+  }
+
+  function openSponsorDestination(url: string | null) {
+    if (!url) {
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+    setSponsoredGate((current) =>
+      current
+        ? {
+            ...current,
+            openedSponsor: true,
+            completed:
+              current.mode === "PLAY"
+                ? current.taps >= SPONSORED_PLAY_TAPS
+                : current.completed,
+          }
+        : current,
+    );
   }
 
   async function progressQuest(quest: OrbitQuest) {
@@ -449,7 +487,7 @@ export function OrbitQuestsView() {
           Loading Orbit Missions...
         </div>
       ) : (
-        <div className="grid min-h-0 flex-1 gap-3 overflow-auto lg:grid-cols-2">
+        <div className="grid min-h-0 flex-1 gap-3 overflow-auto lg:grid-cols-2 xl:grid-cols-3">
           {visibleQuests.map((quest) => {
             const progress = progressByQuestId[quest.id];
             const progressCount = progress?.progress_count ?? 0;
@@ -573,9 +611,24 @@ export function OrbitQuestsView() {
                       ) : (
                         <>
                           <p className="text-xs text-amber-100">
-                            Complete the mini challenge: tap target {SPONSORED_PLAY_TAPS} times before
-                            time runs out.
+                            Complete the full partner flow: open sponsor page + tap target{" "}
+                            {SPONSORED_PLAY_TAPS} times before timer ends.
                           </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              className="rounded-full"
+                              disabled={!quest.sponsor_url}
+                              onClick={() => openSponsorDestination(quest.sponsor_url)}
+                              size="sm"
+                              type="button"
+                              variant="secondary"
+                            >
+                              Open partner game page
+                            </Button>
+                            <span className="text-xs text-amber-100">
+                              Partner page: {sponsoredGate.openedSponsor ? "Opened" : "Not opened"}
+                            </span>
+                          </div>
                           <div className="flex items-center gap-2">
                             <Button
                               className="rounded-full"
@@ -618,14 +671,15 @@ export function OrbitQuestsView() {
                           Cancel
                         </Button>
                         {quest.sponsor_url ? (
-                          <a
-                            className="text-xs text-amber-100 underline-offset-2 hover:underline"
-                            href={quest.sponsor_url}
-                            rel="noreferrer"
-                            target="_blank"
+                          <Button
+                            className="rounded-full"
+                            onClick={() => openSponsorDestination(quest.sponsor_url)}
+                            size="sm"
+                            type="button"
+                            variant="ghost"
                           >
                             Open sponsor page
-                          </a>
+                          </Button>
                         ) : null}
                       </div>
 

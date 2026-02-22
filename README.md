@@ -187,6 +187,8 @@ Run migrations in order from `supabase/migrations/`:
 11. `20260222_orbit_phase12_soundboard.sql`
 12. `20260223_orbit_phase13_server_lift.sql`
 13. `20260223_orbit_phase14_channel_settings.sql`
+14. `20260224_orbit_phase15_profile_cosmetics_connections.sql`
+15. `20260224_orbit_phase16_offerwall_expansion.sql`
 
 Phase 5 adds:
 - `orbit_bots` (per-server bot metadata)
@@ -240,6 +242,16 @@ Phase 14 adds:
 - Channel settings fields (`channels.topic`, `slowmode_seconds`, `is_age_restricted`, `hide_after_days`)
 - Discord-style channel settings modal with public/private visibility controls
 - Per-role channel visibility enforcement for owner/admin/moderator-managed private channels
+
+Phase 15 adds:
+- Expanded store categories (`AVATAR_FRAME`, `PROFILE_BANNER`, `PROFILE_EFFECT`)
+- Profile cosmetic equip fields on `profiles`
+- RPC: `set_active_store_cosmetic` for equipping non-background cosmetics
+- `profile_connections` table for account linking (Steam, Twitch, YouTube, Xbox, etc.)
+
+Phase 16 adds:
+- Expanded sponsored offerwall quests (more WATCH/PLAY campaigns)
+- Additional seeded ad/game missions with stricter completion flow
 
 Also make sure Supabase Auth providers include:
 - Email/Password
@@ -368,6 +380,8 @@ This is the easiest route for non-technical publishing with a secure CI pipeline
 - [ ] All migrations applied through Phase 12
 - [ ] All migrations applied through Phase 13
 - [ ] All migrations applied through Phase 14
+- [ ] All migrations applied through Phase 15
+- [ ] All migrations applied through Phase 16
 - [ ] Supabase Auth providers configured (Email/Password + Google + MFA)
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` added in Vercel
 - [ ] LiveKit keys configured and `/api/livekit/token` verified
