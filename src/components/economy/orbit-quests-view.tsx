@@ -106,6 +106,10 @@ export function OrbitQuestsView() {
     () => quests.find((quest) => quest.id === sponsoredGate?.questId) ?? null,
     [quests, sponsoredGate?.questId],
   );
+  const sponsoredGateId = sponsoredGate?.questId ?? null;
+  const sponsoredGateMode = sponsoredGate?.mode ?? null;
+  const sponsoredGateCompleted = Boolean(sponsoredGate?.completed);
+  const sponsoredGateFailed = Boolean(sponsoredGate?.failed);
 
   const fetchQuestState = useCallback(async () => {
     setLoading(true);
@@ -181,7 +185,7 @@ export function OrbitQuestsView() {
   }, [fetchQuestState]);
 
   useEffect(() => {
-    if (!sponsoredGate || sponsoredGate.completed || sponsoredGate.failed) {
+    if (!sponsoredGateId || sponsoredGateCompleted || sponsoredGateFailed) {
       return;
     }
 
@@ -250,7 +254,7 @@ export function OrbitQuestsView() {
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [sponsoredGate?.completed, sponsoredGate?.failed, sponsoredGate?.questId]);
+  }, [sponsoredGateCompleted, sponsoredGateFailed, sponsoredGateId, sponsoredGateMode]);
 
   function startSponsoredGate(quest: OrbitQuest) {
     const mode: SponsoredGateMode = quest.category === "PLAY" ? "PLAY" : "WATCH";
