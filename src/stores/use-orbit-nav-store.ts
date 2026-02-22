@@ -18,6 +18,7 @@ import type {
 } from "@/src/types/orbit";
 
 export type OrbitFriendsTab = "ALL" | "ONLINE" | "PENDING" | "BLOCKED" | "ADD";
+export type OrbitDmHomeTab = "MESSAGES" | "REQUESTS";
 
 interface OrbitNavState {
   collapsed: boolean;
@@ -34,6 +35,7 @@ interface OrbitNavState {
   activeChannelId: string | null;
   activeDmThreadId: string | null;
   friendsTab: OrbitFriendsTab;
+  dmHomeTab: OrbitDmHomeTab;
   incomingCall: OrbitIncomingCall | null;
   activeCallSession: OrbitActiveCallSession | null;
   privacyMode: boolean;
@@ -83,6 +85,7 @@ interface OrbitNavState {
   setActiveQuests: () => void;
   setActiveLabs: () => void;
   setActiveDmThread: (threadId: string | null) => void;
+  setDmHomeTab: (tab: OrbitDmHomeTab) => void;
   setFriendsTab: (tab: OrbitFriendsTab) => void;
   setActiveServer: (serverId: string | null) => void;
   setActiveChannel: (channelId: string | null) => void;
@@ -108,6 +111,7 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
   activeChannelId: null,
   activeDmThreadId: null,
   friendsTab: "ALL",
+  dmHomeTab: "MESSAGES",
   incomingCall: null,
   activeCallSession: null,
   privacyMode: false,
@@ -315,6 +319,7 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
       activeServerId: null,
       activeChannelId: null,
       activeDmThreadId: null,
+      dmHomeTab: "MESSAGES",
     }),
   setActiveFriends: () =>
     set({
@@ -348,6 +353,14 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
     set({
       activeView: threadId ? "DM_THREAD" : "DM_HOME",
       activeDmThreadId: threadId,
+      activeServerId: null,
+      activeChannelId: null,
+    }),
+  setDmHomeTab: (dmHomeTab) =>
+    set({
+      dmHomeTab,
+      activeView: "DM_HOME",
+      activeDmThreadId: null,
       activeServerId: null,
       activeChannelId: null,
     }),

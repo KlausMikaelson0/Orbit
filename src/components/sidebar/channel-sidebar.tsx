@@ -67,12 +67,14 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
     activeServerId,
     activeChannelId,
     activeDmThreadId,
-    friendsTab,
+    dmHomeTab,
+    setActiveHome,
     setActiveChannel,
     setActiveFriends,
     setActiveQuests,
     setActiveShop,
     setActiveLabs,
+    setDmHomeTab,
     setFriendsTab,
     setActiveDmThread,
   } = useOrbitNavStore(
@@ -87,12 +89,14 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
       activeServerId: state.activeServerId,
       activeChannelId: state.activeChannelId,
       activeDmThreadId: state.activeDmThreadId,
-      friendsTab: state.friendsTab,
+      dmHomeTab: state.dmHomeTab,
+      setActiveHome: state.setActiveHome,
       setActiveChannel: state.setActiveChannel,
       setActiveFriends: state.setActiveFriends,
       setActiveQuests: state.setActiveQuests,
       setActiveShop: state.setActiveShop,
       setActiveLabs: state.setActiveLabs,
+      setDmHomeTab: state.setDmHomeTab,
       setFriendsTab: state.setFriendsTab,
       setActiveDmThread: state.setActiveDmThread,
     })),
@@ -351,7 +355,7 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
                 <div className="mb-2 space-y-1 rounded-xl border border-white/10 bg-black/20 p-1.5">
                   <button
                     className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${
-                      activeView === "FRIENDS" && friendsTab !== "PENDING"
+                      activeView === "FRIENDS"
                         ? "bg-violet-500/20 text-violet-100"
                         : "text-zinc-300 hover:bg-white/[0.07]"
                     }`}
@@ -369,13 +373,13 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
                   </button>
                   <button
                     className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${
-                      activeView === "FRIENDS" && friendsTab === "PENDING"
+                      activeView === "DM_HOME" && dmHomeTab === "REQUESTS"
                         ? "bg-violet-500/20 text-violet-100"
                         : "text-zinc-300 hover:bg-white/[0.07]"
                     }`}
                     onClick={() => {
-                      setFriendsTab("PENDING");
-                      setActiveFriends();
+                      setDmHomeTab("REQUESTS");
+                      setActiveHome();
                       onNavigate?.();
                     }}
                     type="button"

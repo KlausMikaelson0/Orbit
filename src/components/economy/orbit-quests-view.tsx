@@ -447,7 +447,15 @@ export function OrbitQuestsView() {
   }
 
   function openOfferDestination(offer: OrbitOfferwallOffer) {
-    window.open(offer.offerUrl, "_blank", "noopener,noreferrer");
+    const params = new URLSearchParams({
+      u: offer.offerUrl,
+      offerId: offer.id,
+      provider: offer.provider,
+    });
+    if (profileId) {
+      params.set("profileId", profileId);
+    }
+    window.open(`/api/offerwall/click?${params.toString()}`, "_blank", "noopener,noreferrer");
     setSuccess(
       `${offer.title} opened. Reward is credited after partner verification callback.`,
     );

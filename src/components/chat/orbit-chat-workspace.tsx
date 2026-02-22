@@ -469,7 +469,12 @@ export function OrbitChatWorkspace() {
           <OrbitLabsView />
         )
       ) : activeView === "DM_HOME" ? (
-        <DmHomeView onOpenFriends={setActiveFriends} />
+        <DmHomeView
+          acceptFriendRequest={acceptFriendRequest}
+          declineFriendRequest={declineFriendRequest}
+          onOpenFriends={setActiveFriends}
+          sendFriendRequest={sendFriendRequest}
+        />
       ) : activeView === "DM_THREAD" ? (
         <>
           <div className={`min-h-0 flex-1 ${privacyMode ? "privacy-shield" : ""}`}>

@@ -172,6 +172,7 @@ Required:
 Optional but recommended for stable OAuth redirects:
 - `NEXT_PUBLIC_AUTH_REDIRECT_URL` (explicit OAuth base URL, e.g. `https://your-app.vercel.app`)
 - `ADGATE_POSTBACK_TOKEN` (shared secret query token for callback validation)
+- `ADGATE_REQUIRE_POSTBACK_TOKEN` (`1` = reject postbacks without token, `0` = allow tokenless)
 - `OFFERWALL_STARBITS_PER_USD` (default 700, used when provider returns payout without points)
 
 Optional AI provider keys (Orbit-Bot summarize endpoint):
@@ -202,6 +203,7 @@ Run migrations in order from `supabase/migrations/`:
 15. `20260224_orbit_phase16_offerwall_expansion.sql`
 16. `20260224_orbit_phase17_shop_showcase_catalog.sql`
 17. `20260225_orbit_phase18_offerwall_live_integration.sql`
+18. `20260225_orbit_phase19_offerwall_click_tracking.sql`
 
 Phase 5 adds:
 - `orbit_bots` (per-server bot metadata)
@@ -275,18 +277,25 @@ Phase 18 adds:
 - RPC: `orbit_apply_offerwall_reward` for atomic reward credit to profile wallets
 - Production-ready callback accounting for approved/pending/rejected offer states
 
+Phase 19 adds:
+- `offerwall_click_events` table for outbound offer click attribution
+- Server-side click redirect route (`/api/offerwall/click`) before partner handoff
+- Per-user click ledger to reconcile traffic vs approved conversions
+
 ## AdGate offerwall setup (real ads + games)
 
 1. In Vercel, set:
    - `ADGATE_AFF_ID`
    - `ADGATE_API_KEY`
    - `ADGATE_WALL_CODE`
-   - `ADGATE_POSTBACK_TOKEN` (recommended)
+   - `ADGATE_POSTBACK_TOKEN`
+   - `ADGATE_REQUIRE_POSTBACK_TOKEN=1`
 2. Deploy.
 3. Configure AdGate postback URL to:
    - `https://YOUR_DOMAIN/api/offerwall/adgate/postback?auth=YOUR_ADGATE_POSTBACK_TOKEN`
 4. Include macro for user profile in AdGate `s1` (user UUID), and points/payout macros.
 5. Keep the callback endpoint returning HTTP 2xx.
+6. Offer links are routed through `/api/offerwall/click` for click tracking before redirect.
 
 Also make sure Supabase Auth providers include:
 - Email/Password

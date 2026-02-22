@@ -38,6 +38,21 @@ function normalizeState(value: string | null) {
 
 async function readBodyParams(request: Request) {
   const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    try {
+      const payload = (await request.json()) as Record<string, unknown>;
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(payload)) {
+        if (value === undefined || value === null) {
+          continue;
+        }
+        params.set(key, String(value));
+      }
+      return params;
+    } catch {
+      return new URLSearchParams();
+    }
+  }
   if (!contentType.includes("application/x-www-form-urlencoded")) {
     return new URLSearchParams();
   }
@@ -119,8 +134,12 @@ async function parsePostbackPayload(request: Request): Promise<PostbackPayload> 
 }
 
 function hasValidPostbackToken(payload: PostbackPayload) {
+  const requireToken = (process.env.ADGATE_REQUIRE_POSTBACK_TOKEN ?? "0") !== "0";
   const expected = process.env.ADGATE_POSTBACK_TOKEN?.trim();
   if (!expected) {
+    return !requireToken;
+  }
+  if (!requireToken) {
     return true;
   }
   const provided = payload.raw.auth ?? payload.raw.token ?? payload.raw.postback_token;
@@ -133,7 +152,7 @@ function hasValidPostbackToken(payload: PostbackPayload) {
 async function handle(request: Request) {
   const payload = await parsePostbackPayload(request);
   if (!hasValidPostbackToken(payload)) {
-    return new NextResponse("forbidden", { status: 403 });
+    return new NextResponse("invalid postback token", { status: 403 });
   }
 
   // For non-approved states (pending/rejected), acknowledge without rewarding.
@@ -148,7 +167,7 @@ async function handle(request: Request) {
 
   try {
     const supabase = createSupabaseServerServiceClient();
-    await supabase.rpc("orbit_apply_offerwall_reward", {
+    const rpcResult = await supabase.rpc("orbit_apply_offerwall_reward", {
       p_provider: "ADGATE",
       p_conversion_id: payload.conversionId,
       p_profile_id: payload.profileId,
@@ -158,9 +177,12 @@ async function handle(request: Request) {
       p_state: payload.state,
       p_payload: payload.raw,
     });
+    if (rpcResult.error) {
+      return new NextResponse("retry", { status: 503 });
+    }
   } catch {
-    // We still acknowledge to prevent external retries storms.
-    return new NextResponse("ok", { status: 200 });
+    // Return non-2xx so provider retries when backend has temporary issues.
+    return new NextResponse("retry", { status: 503 });
   }
 
   return new NextResponse("ok", { status: 200 });
