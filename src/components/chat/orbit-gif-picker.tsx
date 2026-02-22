@@ -205,7 +205,7 @@ export function OrbitGifPicker({
         searchParams.set("q", debouncedQuery);
       }
     }
-    searchParams.set("limit", "72");
+    searchParams.set("limit", "96");
 
     void fetch(`/api/giphy/search?${searchParams.toString()}`, {
       signal: abortController.signal,
