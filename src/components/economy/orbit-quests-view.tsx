@@ -154,7 +154,9 @@ export function OrbitQuestsView() {
   const [sponsoredGate, setSponsoredGate] = useState<SponsoredGateState | null>(null);
   const [questPlayerOpen, setQuestPlayerOpen] = useState(false);
   const [offerwallOffers, setOfferwallOffers] = useState<OrbitOfferwallOffer[]>([]);
-  const [offerwallSource, setOfferwallSource] = useState<"ADGATE" | "FALLBACK" | "RATE_LIMITED">(
+  const [offerwallSource, setOfferwallSource] = useState<
+    "ADGATE" | "BITLABS" | "FALLBACK" | "RATE_LIMITED"
+  >(
     "FALLBACK",
   );
   const [loadingOfferwall, setLoadingOfferwall] = useState(false);
@@ -281,7 +283,7 @@ export function OrbitQuestsView() {
       });
       const payload = (await response.json()) as {
         offers?: OrbitOfferwallOffer[];
-        source?: "ADGATE" | "FALLBACK" | "RATE_LIMITED";
+        source?: "ADGATE" | "BITLABS" | "FALLBACK" | "RATE_LIMITED";
         error?: string;
         warning?: string;
       };
@@ -675,12 +677,17 @@ export function OrbitQuestsView() {
           <div className="flex items-center gap-2">
             <span
               className={`rounded-full border px-2.5 py-1 text-[11px] ${
-                offerwallSource === "ADGATE"
+                offerwallSource === "ADGATE" || offerwallSource === "BITLABS"
                   ? "border-emerald-300/35 bg-emerald-500/10 text-emerald-100"
                   : "border-amber-300/35 bg-amber-500/10 text-amber-100"
               }`}
             >
-              Source: {offerwallSource === "ADGATE" ? "Live Offerwall" : "Fallback Feed"}
+              Source:{" "}
+              {offerwallSource === "ADGATE"
+                ? "AdGate Live"
+                : offerwallSource === "BITLABS"
+                  ? "BitLabs Live"
+                  : "Fallback Feed"}
             </span>
             <Button
               className="rounded-full"
@@ -709,7 +716,11 @@ export function OrbitQuestsView() {
                 >
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 py-2">
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-100/90">
-                      {offer.provider === "ADGATE" ? "AdGate Partner" : "Orbit Offerwall"}
+                      {offer.provider === "ADGATE"
+                        ? "AdGate Partner"
+                        : offer.provider === "BITLABS"
+                          ? "BitLabs Partner"
+                          : "Orbit Offerwall"}
                     </p>
                     <p className="text-[11px] text-zinc-200/90">
                       {OFFER_CATEGORY_LABELS[offer.category]}

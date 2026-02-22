@@ -13,11 +13,17 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ADGATE_OFFERS_ENDPOINT = "https://api.adgatemedia.com/v1/user-based-api/offers";
+const BITLABS_CLIENT_OFFERS_ENDPOINT = "https://api.bitlabs.ai/v2/client/offers";
 
 interface AdGateConfig {
   affiliateId: string;
   apiKey: string;
   wallCode: string;
+  starbitsPerUsd: number;
+}
+
+interface BitLabsConfig {
+  appToken: string;
   starbitsPerUsd: number;
 }
 
@@ -32,6 +38,16 @@ function getAdGateConfig(): AdGateConfig | null {
   const starbitsPerUsd =
     Number.parseFloat(process.env.OFFERWALL_STARBITS_PER_USD ?? "700") || 700;
   return { affiliateId, apiKey, wallCode, starbitsPerUsd };
+}
+
+function getBitLabsConfig(): BitLabsConfig | null {
+  const appToken = process.env.BITLABS_APP_TOKEN?.trim() ?? "";
+  if (!appToken) {
+    return null;
+  }
+  const starbitsPerUsd =
+    Number.parseFloat(process.env.OFFERWALL_STARBITS_PER_USD ?? "700") || 700;
+  return { appToken, starbitsPerUsd };
 }
 
 function toNumber(value: unknown) {
@@ -216,6 +232,103 @@ function normalizeAdGateOffers(
   );
 }
 
+function normalizeBitLabsOffers(
+  payload: unknown,
+  config: BitLabsConfig,
+): OrbitOfferwallOffer[] {
+  const rows = collectPotentialOfferRows(payload);
+  if (!rows.length) {
+    return [];
+  }
+
+  const offers: OrbitOfferwallOffer[] = [];
+  for (const row of rows) {
+    const title = pickString(row, [
+      "anchor",
+      "title",
+      "name",
+      "offer_name",
+      "offerName",
+    ]);
+    const offerUrl = normalizeUrl(
+      pickString(row, ["click_url", "tracking_url", "url", "link"]),
+    );
+    if (!title || !offerUrl) {
+      continue;
+    }
+
+    const description =
+      pickString(row, ["description", "requirements", "instructions", "subtitle"]) ??
+      "Complete the listed partner tasks to unlock your reward.";
+    const payoutUsd =
+      pickNumber(row, ["raw", "payout", "usd", "payout_usd", "value_usd"]) ?? 0;
+    const explicitPoints =
+      pickNumber(row, ["val", "value", "points", "reward", "reward_points"]) ?? 0;
+    const rewardStarbits =
+      explicitPoints > 0
+        ? Math.max(1, Math.round(explicitPoints))
+        : toOfferwallStarbitsFromUsd(payoutUsd, config.starbitsPerUsd);
+    if (rewardStarbits <= 0) {
+      continue;
+    }
+
+    const offerId =
+      pickString(row, ["id", "offer_id", "offerId"]) ??
+      `bitlabs-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    const thumbnailUrl = normalizeUrl(
+      pickString(row, ["icon_url", "image_url", "thumbnail", "icon"]),
+    );
+    const category = toCategory(
+      pickString(row, ["category", "type", "offer_type", "task_type"]),
+    );
+
+    offers.push({
+      id: offerId,
+      provider: "BITLABS",
+      title,
+      description,
+      category,
+      rewardStarbits,
+      payoutUsdCents: Math.max(0, Math.round(payoutUsd * 100)),
+      offerUrl,
+      thumbnailUrl,
+      ctaLabel: `Play and earn ${rewardStarbits.toLocaleString()}`,
+      featured: rewardStarbits >= 650,
+    });
+  }
+
+  const deduped = new Map<string, OrbitOfferwallOffer>();
+  for (const offer of offers) {
+    const key = `${offer.title.toLowerCase()}|${offer.offerUrl}`;
+    if (!deduped.has(key)) {
+      deduped.set(key, offer);
+    }
+  }
+  return Array.from(deduped.values()).sort(
+    (a, b) => b.rewardStarbits - a.rewardStarbits,
+  );
+}
+
+function buildBitLabsLaunchOffer(profileId: string, config: BitLabsConfig): OrbitOfferwallOffer {
+  const launchUrl = new URL("https://web.bitlabs.ai/");
+  launchUrl.searchParams.set("uid", profileId);
+  launchUrl.searchParams.set("token", config.appToken);
+  const rewardStarbits = Number.parseInt(process.env.BITLABS_DEFAULT_REWARD_STARBITS ?? "700", 10) || 700;
+  return {
+    id: "bitlabs-live-offerwall",
+    provider: "BITLABS",
+    title: "BitLabs Live Offerwall",
+    description: "Open live partner games, surveys, and install campaigns with real payouts.",
+    category: "PLAY",
+    rewardStarbits,
+    payoutUsdCents: Math.round((rewardStarbits / Math.max(1, config.starbitsPerUsd)) * 100),
+    offerUrl: launchUrl.toString(),
+    thumbnailUrl: null,
+    ctaLabel: `Play and earn ${rewardStarbits.toLocaleString()}+`,
+    featured: true,
+  };
+}
+
 export async function GET(request: Request) {
   const ip = getOrbitRequestIp(request);
   const rate = checkOrbitRateLimit({
@@ -241,27 +354,67 @@ export async function GET(request: Request) {
   }
 
   const fallbackOffers = getOrbitFallbackOfferwallOffers();
-  const config = getAdGateConfig();
-  if (!config) {
-    return NextResponse.json({
-      offers: fallbackOffers,
-      source: "FALLBACK",
-      live: false,
-      warning:
-        "AdGate credentials missing. Set ADGATE_AFF_ID, ADGATE_API_KEY, ADGATE_WALL_CODE for live offers.",
-    });
-  }
-
   const requestUrl = new URL(request.url);
   const profileId =
     requestUrl.searchParams.get("profileId")?.trim() || `guest-${ip}`;
   const country = request.headers.get("x-vercel-ip-country") ?? "US";
   const userAgent = request.headers.get("user-agent") ?? "Orbit/1.0";
+  const providerWarnings: string[] = [];
+
+  const bitlabsConfig = getBitLabsConfig();
+  if (bitlabsConfig) {
+    const endpoint = new URL(BITLABS_CLIENT_OFFERS_ENDPOINT);
+    endpoint.searchParams.set("uid", profileId);
+    endpoint.searchParams.set("token", bitlabsConfig.appToken);
+    endpoint.searchParams.set("client_ip", ip);
+    endpoint.searchParams.set("client_user_agent", userAgent.slice(0, 220));
+    endpoint.searchParams.set("country", country);
+    try {
+      const response = await fetch(endpoint.toString(), {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (response.ok) {
+        const payload = (await response.json()) as unknown;
+        const liveOffers = normalizeBitLabsOffers(payload, bitlabsConfig);
+        if (liveOffers.length) {
+          return NextResponse.json({
+            offers: liveOffers,
+            source: "BITLABS",
+            live: true,
+          });
+        }
+      } else {
+        providerWarnings.push(`BitLabs request failed (${response.status}).`);
+      }
+    } catch {
+      providerWarnings.push("BitLabs request failed.");
+    }
+
+    // BitLabs fallback still opens a real offerwall with live campaigns.
+    return NextResponse.json({
+      offers: [buildBitLabsLaunchOffer(profileId, bitlabsConfig)],
+      source: "BITLABS",
+      live: true,
+      warning: providerWarnings.join(" "),
+    });
+  }
+
+  const adgateConfig = getAdGateConfig();
+  if (!adgateConfig) {
+    return NextResponse.json({
+      offers: fallbackOffers,
+      source: "FALLBACK",
+      live: false,
+      warning:
+        "No live offerwall credentials found. Set BITLABS_APP_TOKEN or ADGATE_AFF_ID/ADGATE_API_KEY/ADGATE_WALL_CODE.",
+    });
+  }
 
   const endpoint = new URL(ADGATE_OFFERS_ENDPOINT);
-  endpoint.searchParams.set("aff_id", config.affiliateId);
-  endpoint.searchParams.set("api_key", config.apiKey);
-  endpoint.searchParams.set("wall_code", config.wallCode);
+  endpoint.searchParams.set("aff_id", adgateConfig.affiliateId);
+  endpoint.searchParams.set("api_key", adgateConfig.apiKey);
+  endpoint.searchParams.set("wall_code", adgateConfig.wallCode);
   endpoint.searchParams.set("user_id", profileId);
   endpoint.searchParams.set("country", country);
   endpoint.searchParams.set("s1", profileId);
@@ -286,7 +439,7 @@ export async function GET(request: Request) {
     }
 
     const payload = (await response.json()) as unknown;
-    const liveOffers = normalizeAdGateOffers(payload, config);
+    const liveOffers = normalizeAdGateOffers(payload, adgateConfig);
     if (!liveOffers.length) {
       return NextResponse.json(
         {

@@ -68,7 +68,6 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
     activeChannelId,
     activeDmThreadId,
     dmHomeTab,
-    setActiveHome,
     setActiveChannel,
     setActiveFriends,
     setActiveQuests,
@@ -90,7 +89,6 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
       activeChannelId: state.activeChannelId,
       activeDmThreadId: state.activeDmThreadId,
       dmHomeTab: state.dmHomeTab,
-      setActiveHome: state.setActiveHome,
       setActiveChannel: state.setActiveChannel,
       setActiveFriends: state.setActiveFriends,
       setActiveQuests: state.setActiveQuests,
@@ -379,7 +377,6 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
                     }`}
                     onClick={() => {
                       setDmHomeTab("REQUESTS");
-                      setActiveHome();
                       onNavigate?.();
                     }}
                     type="button"

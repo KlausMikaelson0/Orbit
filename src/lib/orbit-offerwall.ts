@@ -1,4 +1,4 @@
-export type OrbitOfferwallProvider = "ADGATE" | "FALLBACK";
+export type OrbitOfferwallProvider = "ADGATE" | "BITLABS" | "FALLBACK";
 export type OrbitOfferwallCategory = "PLAY" | "WATCH" | "INSTALL" | "SURVEY";
 
 export interface OrbitOfferwallOffer {

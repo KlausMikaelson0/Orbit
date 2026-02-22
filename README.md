@@ -168,12 +168,16 @@ Required:
 - `ADGATE_AFF_ID` (for live offerwall campaigns)
 - `ADGATE_API_KEY` (for live offerwall campaigns)
 - `ADGATE_WALL_CODE` (from your AdGate wall config)
+- `BITLABS_APP_TOKEN` (for live BitLabs offerwall campaigns)
 
 Optional but recommended for stable OAuth redirects:
 - `NEXT_PUBLIC_AUTH_REDIRECT_URL` (explicit OAuth base URL, e.g. `https://your-app.vercel.app`)
 - `ADGATE_POSTBACK_TOKEN` (shared secret query token for callback validation)
 - `ADGATE_REQUIRE_POSTBACK_TOKEN` (`1` = reject postbacks without token, `0` = allow tokenless)
+- `BITLABS_APP_SECRET` (for BitLabs callback hash verification)
+- `BITLABS_REQUIRE_HASH` (`1` = require valid callback hash, recommended)
 - `OFFERWALL_STARBITS_PER_USD` (default 700, used when provider returns payout without points)
+- `BITLABS_DEFAULT_REWARD_STARBITS` (default fallback card value when BitLabs list API has no reward field)
 
 Optional AI provider keys (Orbit-Bot summarize endpoint):
 - `ANTHROPIC_API_KEY`
@@ -296,6 +300,20 @@ Phase 19 adds:
 4. Include macro for user profile in AdGate `s1` (user UUID), and points/payout macros.
 5. Keep the callback endpoint returning HTTP 2xx.
 6. Offer links are routed through `/api/offerwall/click` for click tracking before redirect.
+
+## BitLabs offerwall setup (real ads + games)
+
+1. In BitLabs Dashboard create an App/Placement and copy:
+   - App Token
+   - App Secret
+2. In Vercel set:
+   - `BITLABS_APP_TOKEN`
+   - `BITLABS_APP_SECRET`
+   - `BITLABS_REQUIRE_HASH=1`
+3. In BitLabs callback settings configure URL:
+   - `https://YOUR_DOMAIN/api/offerwall/bitlabs/postback?uid=[%UID%]&val=[%VAL%]&raw=[%RAW%]&tx=[%TX%]&offer_name=[%OFFER:NAME%]&state=[%OFFER:TASK:STATE%]&hash=[HASH]`
+4. Keep `uid` as your Orbit user UUID so rewards credit the correct wallet.
+5. Offer clicks are tracked server-side through `/api/offerwall/click` before redirect.
 
 Also make sure Supabase Auth providers include:
 - Email/Password
