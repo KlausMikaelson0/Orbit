@@ -81,7 +81,7 @@ interface ShopPresentationMeta {
 const SHOP_TAB_OPTIONS: Array<{ key: ShopTab; label: string }> = [
   { key: "FEATURED", label: "Featured" },
   { key: "BROWSE", label: "Browse" },
-  { key: "ORBS_EXCLUSIVE", label: "Orbs Exclusive" },
+  { key: "ORBS_EXCLUSIVE", label: "Orbs Exclusives" },
 ];
 
 const SHOP_SORTS: Array<{ key: ShopSort; label: string }> = [

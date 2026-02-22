@@ -5,8 +5,10 @@ import {
   CheckCircle2,
   Clock3,
   ExternalLink,
+  Gamepad2,
   Gift,
   PlayCircle,
+  RefreshCcw,
   Sparkles,
   Store,
   Trophy,
@@ -21,6 +23,7 @@ import {
   getOrbitLocalQuestProgress,
   getOrbitLocalQuests,
 } from "@/src/lib/orbit-local-data";
+import type { OrbitOfferwallOffer } from "@/src/lib/orbit-offerwall";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { OrbitProfileWallet, OrbitQuest, OrbitQuestProgress } from "@/src/types/orbit";
 
@@ -89,6 +92,45 @@ const QUEST_CAMPAIGN_STYLES: Record<string, string> = {
     "radial-gradient(120% 120% at 24% 26%, rgba(34,197,94,0.28), transparent 45%), linear-gradient(145deg,#0f241a,#173122,#111827)",
 };
 
+const OFFER_CATEGORY_LABELS: Record<OrbitOfferwallOffer["category"], string> = {
+  PLAY: "Game Quest",
+  WATCH: "Watch Quest",
+  INSTALL: "Install Quest",
+  SURVEY: "Survey Quest",
+};
+
+function getOfferCardBackground(offer: OrbitOfferwallOffer) {
+  if (offer.thumbnailUrl) {
+    return {
+      backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.16), rgba(0,0,0,0.78)), url("${offer.thumbnailUrl}")`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+    } as const;
+  }
+  if (offer.category === "PLAY") {
+    return {
+      background:
+        "radial-gradient(120% 120% at 18% 20%, rgba(139,92,246,0.38), transparent 50%), linear-gradient(145deg,#110d25,#1d1453,#111827)",
+    } as const;
+  }
+  if (offer.category === "WATCH") {
+    return {
+      background:
+        "radial-gradient(120% 120% at 82% 20%, rgba(251,191,36,0.34), transparent 52%), linear-gradient(145deg,#22170a,#3a240f,#111827)",
+    } as const;
+  }
+  if (offer.category === "INSTALL") {
+    return {
+      background:
+        "radial-gradient(120% 120% at 22% 82%, rgba(56,189,248,0.3), transparent 52%), linear-gradient(145deg,#0f1a2f,#17304f,#111827)",
+    } as const;
+  }
+  return {
+    background:
+      "radial-gradient(120% 120% at 86% 18%, rgba(236,72,153,0.28), transparent 52%), linear-gradient(145deg,#201126,#35173d,#111827)",
+  } as const;
+}
+
 function progressPercent(progress: number, target: number) {
   if (target <= 0) {
     return 0;
@@ -100,6 +142,7 @@ export function OrbitQuestsView() {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const watchVideoRef = useRef<HTMLVideoElement | null>(null);
   const setActiveShop = useOrbitNavStore((state) => state.setActiveShop);
+  const profileId = useOrbitNavStore((state) => state.profile?.id ?? null);
   const [tab, setTab] = useState<QuestTab>("ALL");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +153,12 @@ export function OrbitQuestsView() {
   const [progressRows, setProgressRows] = useState<OrbitQuestProgress[]>([]);
   const [sponsoredGate, setSponsoredGate] = useState<SponsoredGateState | null>(null);
   const [questPlayerOpen, setQuestPlayerOpen] = useState(false);
+  const [offerwallOffers, setOfferwallOffers] = useState<OrbitOfferwallOffer[]>([]);
+  const [offerwallSource, setOfferwallSource] = useState<"ADGATE" | "FALLBACK" | "RATE_LIMITED">(
+    "FALLBACK",
+  );
+  const [loadingOfferwall, setLoadingOfferwall] = useState(false);
+  const [offerwallError, setOfferwallError] = useState<string | null>(null);
 
   const progressByQuestId = useMemo(
     () =>
@@ -220,9 +269,41 @@ export function OrbitQuestsView() {
     setLoading(false);
   }, [supabase]);
 
+  const fetchOfferwallOffers = useCallback(async () => {
+    setLoadingOfferwall(true);
+    setOfferwallError(null);
+
+    try {
+      const params = new URLSearchParams();
+      params.set("profileId", profileId ?? ORBIT_LOCAL_PROFILE.id);
+      const response = await fetch(`/api/offerwall/offers?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as {
+        offers?: OrbitOfferwallOffer[];
+        source?: "ADGATE" | "FALLBACK" | "RATE_LIMITED";
+        error?: string;
+        warning?: string;
+      };
+      setOfferwallOffers((payload.offers ?? []).slice(0, 12));
+      setOfferwallSource(payload.source ?? "FALLBACK");
+      setOfferwallError(payload.error ?? payload.warning ?? null);
+      setLoadingOfferwall(false);
+    } catch {
+      setOfferwallOffers([]);
+      setOfferwallSource("FALLBACK");
+      setOfferwallError("Unable to load live offers right now.");
+      setLoadingOfferwall(false);
+    }
+  }, [profileId]);
+
   useEffect(() => {
     void fetchQuestState();
   }, [fetchQuestState]);
+
+  useEffect(() => {
+    void fetchOfferwallOffers();
+  }, [fetchOfferwallOffers]);
 
   useEffect(() => {
     if (!sponsoredGateId || sponsoredGateCompleted || sponsoredGateFailed) {
@@ -363,6 +444,14 @@ export function OrbitQuestsView() {
           }
         : current,
     );
+  }
+
+  function openOfferDestination(offer: OrbitOfferwallOffer) {
+    window.open(offer.offerUrl, "_blank", "noopener,noreferrer");
+    setSuccess(
+      `${offer.title} opened. Reward is credited after partner verification callback.`,
+    );
+    setError(null);
   }
 
   async function progressQuest(quest: OrbitQuest) {
@@ -563,6 +652,101 @@ export function OrbitQuestsView() {
           <Sparkles className="h-4 w-4" />
           Refresh
         </Button>
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-white/10 bg-black/25 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+              Live Game & Ad Offers
+            </p>
+            <h3 className="text-sm font-semibold text-zinc-100">
+              Play partner games and earn Starbits
+            </h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[11px] ${
+                offerwallSource === "ADGATE"
+                  ? "border-emerald-300/35 bg-emerald-500/10 text-emerald-100"
+                  : "border-amber-300/35 bg-amber-500/10 text-amber-100"
+              }`}
+            >
+              Source: {offerwallSource === "ADGATE" ? "Live Offerwall" : "Fallback Feed"}
+            </span>
+            <Button
+              className="rounded-full"
+              disabled={loadingOfferwall}
+              onClick={() => void fetchOfferwallOffers()}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <RefreshCcw className={`h-4 w-4 ${loadingOfferwall ? "animate-spin" : ""}`} />
+              Refresh offers
+            </Button>
+          </div>
+        </div>
+
+        {offerwallOffers.length ? (
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            {offerwallOffers.map((offer) => (
+              <article
+                className="overflow-hidden rounded-xl border border-white/10 bg-black/30"
+                key={offer.id}
+              >
+                <div
+                  className="relative h-28 border-b border-white/10"
+                  style={getOfferCardBackground(offer)}
+                >
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 py-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-100/90">
+                      {offer.provider === "ADGATE" ? "AdGate Partner" : "Orbit Offerwall"}
+                    </p>
+                    <p className="text-[11px] text-zinc-200/90">
+                      {OFFER_CATEGORY_LABELS[offer.category]}
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-2 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-100">{offer.title}</p>
+                      <p className="line-clamp-2 text-xs text-zinc-300">{offer.description}</p>
+                    </div>
+                    <span className="rounded-full border border-emerald-300/35 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100">
+                      +{offer.rewardStarbits.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                    <span className="inline-flex items-center gap-1">
+                      <Gamepad2 className="h-3.5 w-3.5" />
+                      {offer.ctaLabel}
+                    </span>
+                    <span>${(offer.payoutUsdCents / 100).toFixed(2)}</span>
+                  </div>
+                  <Button
+                    className="w-full rounded-full"
+                    onClick={() => openOfferDestination(offer)}
+                    size="sm"
+                    type="button"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open Offer
+                  </Button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : loadingOfferwall ? (
+          <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-5 text-sm text-zinc-300">
+            Loading offerwall feed...
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-white/10 bg-black/25 px-3 py-5 text-sm text-zinc-400">
+            No live offers available for this region right now.
+          </div>
+        )}
       </section>
 
       {loading ? (
@@ -864,6 +1048,11 @@ export function OrbitQuestsView() {
         </DialogContent>
       </Dialog>
 
+      {offerwallError ? (
+        <p className="rounded-lg border border-amber-300/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          {offerwallError}
+        </p>
+      ) : null}
       {error ? (
         <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
           {error}

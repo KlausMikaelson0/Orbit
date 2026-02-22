@@ -77,6 +77,12 @@ Orbit is a realtime productivity-social platform built in phases:
 - **Quest action events** to track engagement and feed ad/revenue analytics
 - **Quest reward claiming** that pays out Starbits into user wallets
 
+### Live Offerwall (Phase 18)
+- **AdGate-compatible offers feed** API for real ad/game campaigns
+- **Secure postback endpoint** to ingest conversion callbacks
+- **Atomic wallet credit RPC** with dedupe protection per conversion ID
+- **Offerwall reward ledger** for payout auditing and anti-duplicate safeguards
+
 ## Local development
 
 ```bash
@@ -159,9 +165,14 @@ Required:
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
 - `GIPHY_API_KEY` (for GIF picker search)
+- `ADGATE_AFF_ID` (for live offerwall campaigns)
+- `ADGATE_API_KEY` (for live offerwall campaigns)
+- `ADGATE_WALL_CODE` (from your AdGate wall config)
 
 Optional but recommended for stable OAuth redirects:
 - `NEXT_PUBLIC_AUTH_REDIRECT_URL` (explicit OAuth base URL, e.g. `https://your-app.vercel.app`)
+- `ADGATE_POSTBACK_TOKEN` (shared secret query token for callback validation)
+- `OFFERWALL_STARBITS_PER_USD` (default 700, used when provider returns payout without points)
 
 Optional AI provider keys (Orbit-Bot summarize endpoint):
 - `ANTHROPIC_API_KEY`
@@ -190,6 +201,7 @@ Run migrations in order from `supabase/migrations/`:
 14. `20260224_orbit_phase15_profile_cosmetics_connections.sql`
 15. `20260224_orbit_phase16_offerwall_expansion.sql`
 16. `20260224_orbit_phase17_shop_showcase_catalog.sql`
+17. `20260225_orbit_phase18_offerwall_live_integration.sql`
 
 Phase 5 adds:
 - `orbit_bots` (per-server bot metadata)
@@ -257,6 +269,24 @@ Phase 16 adds:
 Phase 17 adds:
 - Expanded shop showcase catalog with high-tier bundles and exclusive cosmetics
 - Additional avatar frame/profile banner/profile effect items for popular picks sections
+
+Phase 18 adds:
+- `offerwall_reward_events` table for partner conversion callbacks and dedupe
+- RPC: `orbit_apply_offerwall_reward` for atomic reward credit to profile wallets
+- Production-ready callback accounting for approved/pending/rejected offer states
+
+## AdGate offerwall setup (real ads + games)
+
+1. In Vercel, set:
+   - `ADGATE_AFF_ID`
+   - `ADGATE_API_KEY`
+   - `ADGATE_WALL_CODE`
+   - `ADGATE_POSTBACK_TOKEN` (recommended)
+2. Deploy.
+3. Configure AdGate postback URL to:
+   - `https://YOUR_DOMAIN/api/offerwall/adgate/postback?auth=YOUR_ADGATE_POSTBACK_TOKEN`
+4. Include macro for user profile in AdGate `s1` (user UUID), and points/payout macros.
+5. Keep the callback endpoint returning HTTP 2xx.
 
 Also make sure Supabase Auth providers include:
 - Email/Password
