@@ -653,66 +653,6 @@ export function OrbitShopView() {
     return [...current, value];
   }
 
-  function matchBrowseCategory(item: OrbitStoreItem) {
-    if (browseCategory === "SHOP_ALL") {
-      return true;
-    }
-    if (browseCategory === "AVATAR_DECORATIONS") {
-      return item.category === "AVATAR_FRAME";
-    }
-    if (browseCategory === "PROFILE_EFFECTS") {
-      return item.category === "PROFILE_EFFECT" || item.category === "PROFILE_FLARE";
-    }
-    if (browseCategory === "NAMEPLATES") {
-      return item.category === "PROFILE_BANNER";
-    }
-    if (browseCategory === "BUNDLES") {
-      return isBundleItem(item);
-    }
-    return true;
-  }
-
-  function matchShowOnlyFilters(item: OrbitStoreItem) {
-    if (!showOnlyFilters.length) {
-      return true;
-    }
-    return showOnlyFilters.every((filterKey) => {
-      if (filterKey === "AVATAR_DECORATIONS") {
-        return item.category === "AVATAR_FRAME";
-      }
-      if (filterKey === "PROFILE_EFFECTS") {
-        return item.category === "PROFILE_EFFECT" || item.category === "PROFILE_FLARE";
-      }
-      if (filterKey === "NAMEPLATES") {
-        return item.category === "PROFILE_BANNER";
-      }
-      if (filterKey === "BUNDLES") {
-        return isBundleItem(item);
-      }
-      if (filterKey === "ORBS_ELIGIBLE") {
-        return isOrbsExclusive(item);
-      }
-      return true;
-    });
-  }
-
-  function matchColorAndTheme(item: OrbitStoreItem) {
-    const meta = resolveMeta(item);
-    if (selectedColors.length) {
-      const hasColor = selectedColors.some((color) => meta.colors.includes(color));
-      if (!hasColor) {
-        return false;
-      }
-    }
-    if (selectedThemes.length) {
-      const hasTheme = selectedThemes.some((theme) => meta.themes.includes(theme));
-      if (!hasTheme) {
-        return false;
-      }
-    }
-    return true;
-  }
-
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     let rows = storeItems.filter((item) => {
@@ -726,13 +666,69 @@ export function OrbitShopView() {
     });
 
     if (tab === "BROWSE") {
-      rows = rows.filter(matchBrowseCategory);
+      rows = rows.filter((item) => {
+        if (browseCategory === "SHOP_ALL") {
+          return true;
+        }
+        if (browseCategory === "AVATAR_DECORATIONS") {
+          return item.category === "AVATAR_FRAME";
+        }
+        if (browseCategory === "PROFILE_EFFECTS") {
+          return item.category === "PROFILE_EFFECT" || item.category === "PROFILE_FLARE";
+        }
+        if (browseCategory === "NAMEPLATES") {
+          return item.category === "PROFILE_BANNER";
+        }
+        if (browseCategory === "BUNDLES") {
+          return isBundleItem(item);
+        }
+        return true;
+      });
     }
     if (tab === "ORBS_EXCLUSIVE") {
       rows = rows.filter((item) => isOrbsExclusive(item));
     }
 
-    rows = rows.filter((item) => matchShowOnlyFilters(item) && matchColorAndTheme(item));
+    rows = rows.filter((item) => {
+      if (showOnlyFilters.length) {
+        const showOnlyMatch = showOnlyFilters.every((filterKey) => {
+          if (filterKey === "AVATAR_DECORATIONS") {
+            return item.category === "AVATAR_FRAME";
+          }
+          if (filterKey === "PROFILE_EFFECTS") {
+            return item.category === "PROFILE_EFFECT" || item.category === "PROFILE_FLARE";
+          }
+          if (filterKey === "NAMEPLATES") {
+            return item.category === "PROFILE_BANNER";
+          }
+          if (filterKey === "BUNDLES") {
+            return isBundleItem(item);
+          }
+          if (filterKey === "ORBS_ELIGIBLE") {
+            return isOrbsExclusive(item);
+          }
+          return true;
+        });
+        if (!showOnlyMatch) {
+          return false;
+        }
+      }
+
+      const meta = resolveMeta(item);
+      if (selectedColors.length) {
+        const hasColor = selectedColors.some((color) => meta.colors.includes(color));
+        if (!hasColor) {
+          return false;
+        }
+      }
+      if (selectedThemes.length) {
+        const hasTheme = selectedThemes.some((theme) => meta.themes.includes(theme));
+        if (!hasTheme) {
+          return false;
+        }
+      }
+      return true;
+    });
     return rows;
   }, [
     browseCategory,
