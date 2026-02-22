@@ -24,7 +24,7 @@ function isUuid(value: string | null) {
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
-  const destination = requestUrl.searchParams.get("u")?.trim() ?? null;
+  const destination = requestUrl.searchParams.get("u")?.trim() ?? "";
   if (!isValidHttpUrl(destination)) {
     return NextResponse.json({ error: "Invalid offer destination." }, { status: 400 });
   }
