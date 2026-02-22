@@ -17,6 +17,8 @@ import type {
   OrbitViewMode,
 } from "@/src/types/orbit";
 
+export type OrbitFriendsTab = "ALL" | "ONLINE" | "PENDING" | "BLOCKED" | "ADD";
+
 interface OrbitNavState {
   collapsed: boolean;
   profile: OrbitProfile | null;
@@ -31,6 +33,7 @@ interface OrbitNavState {
   activeServerId: string | null;
   activeChannelId: string | null;
   activeDmThreadId: string | null;
+  friendsTab: OrbitFriendsTab;
   incomingCall: OrbitIncomingCall | null;
   activeCallSession: OrbitActiveCallSession | null;
   privacyMode: boolean;
@@ -80,6 +83,7 @@ interface OrbitNavState {
   setActiveQuests: () => void;
   setActiveLabs: () => void;
   setActiveDmThread: (threadId: string | null) => void;
+  setFriendsTab: (tab: OrbitFriendsTab) => void;
   setActiveServer: (serverId: string | null) => void;
   setActiveChannel: (channelId: string | null) => void;
   getSummary: () => OrbitNavSummary;
@@ -103,6 +107,7 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
   activeServerId: null,
   activeChannelId: null,
   activeDmThreadId: null,
+  friendsTab: "ALL",
   incomingCall: null,
   activeCallSession: null,
   privacyMode: false,
@@ -346,6 +351,7 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
       activeServerId: null,
       activeChannelId: null,
     }),
+  setFriendsTab: (friendsTab) => set({ friendsTab }),
   setActiveServer: (serverId) =>
     set((state) => {
       if (!serverId) {

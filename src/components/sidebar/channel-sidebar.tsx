@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   FileText,
-  FlaskConical,
   Hash,
   MessagesSquare,
   Mic,
@@ -63,14 +62,18 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
     channelsByServer,
     dmConversations,
     onlineProfileIds,
+    relationships,
+    profile,
     activeServerId,
     activeChannelId,
     activeDmThreadId,
+    friendsTab,
     setActiveChannel,
     setActiveFriends,
     setActiveQuests,
     setActiveShop,
     setActiveLabs,
+    setFriendsTab,
     setActiveDmThread,
   } = useOrbitNavStore(
     useShallow((state) => ({
@@ -79,14 +82,18 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
       channelsByServer: state.channelsByServer,
       dmConversations: state.dmConversations,
       onlineProfileIds: state.onlineProfileIds,
+      relationships: state.relationships,
+      profile: state.profile,
       activeServerId: state.activeServerId,
       activeChannelId: state.activeChannelId,
       activeDmThreadId: state.activeDmThreadId,
+      friendsTab: state.friendsTab,
       setActiveChannel: state.setActiveChannel,
       setActiveFriends: state.setActiveFriends,
       setActiveQuests: state.setActiveQuests,
       setActiveShop: state.setActiveShop,
       setActiveLabs: state.setActiveLabs,
+      setFriendsTab: state.setFriendsTab,
       setActiveDmThread: state.setActiveDmThread,
     })),
   );
@@ -109,6 +116,14 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
     activeView === "QUESTS" ||
     activeView === "LABS";
   const [headerNotice, setHeaderNotice] = useState<string | null>(null);
+  const incomingRequestCount = useMemo(() => {
+    if (!profile) {
+      return 0;
+    }
+    return relationships.filter(
+      (row) => row.status === "PENDING" && row.addressee_id === profile.id,
+    ).length;
+  }, [profile, relationships]);
 
   async function copyInviteCode(inviteCode: string) {
     try {
@@ -236,7 +251,7 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
 
       <div className="mb-2 flex items-center justify-between px-1">
         <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">
-          {isServerView ? "Channels" : "Direct Messages"}
+          {isServerView ? "Channels" : "Home"}
         </p>
         {isServerView ? (
           <div className="flex items-center gap-1">
@@ -270,54 +285,11 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
           </div>
         ) : (
           <div className="flex items-center gap-1">
-            <Button
-              className="rounded-full px-2.5"
-              onClick={() => {
-                setActiveFriends();
-                onNavigate?.();
-              }}
-              size="sm"
-              variant={activeView === "FRIENDS" ? "default" : "secondary"}
-            >
-              <Users className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Friends</span>
-            </Button>
-            <Button
-              className="rounded-full px-2.5"
-              onClick={() => {
-                setActiveShop();
-                onNavigate?.();
-              }}
-              size="sm"
-              variant={activeView === "SHOP" ? "default" : "secondary"}
-            >
-              <ShoppingBag className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Shop</span>
-            </Button>
-            <Button
-              className="rounded-full px-2.5"
-              onClick={() => {
-                setActiveQuests();
-                onNavigate?.();
-              }}
-              size="sm"
-              variant={activeView === "QUESTS" ? "default" : "secondary"}
-            >
-              <ScrollText className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Quests</span>
-            </Button>
-            <Button
-              className="rounded-full px-2.5"
-              onClick={() => {
-                setActiveLabs();
-                onNavigate?.();
-              }}
-              size="sm"
-              variant={activeView === "LABS" ? "default" : "secondary"}
-            >
-              <FlaskConical className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Labs</span>
-            </Button>
+            {incomingRequestCount ? (
+              <span className="rounded-full border border-rose-300/35 bg-rose-500/10 px-2 py-0.5 text-[10px] text-rose-100">
+                {incomingRequestCount} pending
+              </span>
+            ) : null}
           </div>
         )}
       </div>
@@ -374,41 +346,139 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
                   </div>
                 );
               })
-            : dmConversations.map((conversation) => {
-                const active = conversation.thread.id === activeDmThreadId;
-                const label =
-                  conversation.otherProfile.full_name ??
-                  conversation.otherProfile.username ??
-                  "Orbit User";
-                const online = onlineProfileIds.includes(conversation.otherProfile.id);
-                return (
+            : (
+              <>
+                <div className="mb-2 space-y-1 rounded-xl border border-white/10 bg-black/20 p-1.5">
                   <button
-                    className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-sm transition ${
-                      active
+                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${
+                      activeView === "FRIENDS" && friendsTab !== "PENDING"
                         ? "bg-violet-500/20 text-violet-100"
                         : "text-zinc-300 hover:bg-white/[0.07]"
                     }`}
-                    key={conversation.thread.id}
                     onClick={() => {
-                      setActiveDmThread(conversation.thread.id);
+                      setFriendsTab("ALL");
+                      setActiveFriends();
                       onNavigate?.();
                     }}
                     type="button"
                   >
-                    <span className="min-w-0">
-                      <span className="block truncate">{label}</span>
-                      <span className="block truncate text-[11px] text-zinc-500">
-                        {conversation.lastMessage?.content ?? "No messages yet"}
-                      </span>
+                    <span className="inline-flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Friends
                     </span>
-                    <span
-                      className={`h-2.5 w-2.5 rounded-full ${
-                        online ? "bg-emerald-400" : "bg-zinc-600"
-                      }`}
-                    />
                   </button>
-                );
-              })}
+                  <button
+                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${
+                      activeView === "FRIENDS" && friendsTab === "PENDING"
+                        ? "bg-violet-500/20 text-violet-100"
+                        : "text-zinc-300 hover:bg-white/[0.07]"
+                    }`}
+                    onClick={() => {
+                      setFriendsTab("PENDING");
+                      setActiveFriends();
+                      onNavigate?.();
+                    }}
+                    type="button"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <MessagesSquare className="h-4 w-4" />
+                      Message Requests
+                    </span>
+                    {incomingRequestCount ? (
+                      <span className="rounded-full bg-rose-500/20 px-1.5 py-0.5 text-[10px] text-rose-100">
+                        {incomingRequestCount}
+                      </span>
+                    ) : null}
+                  </button>
+                  <button
+                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm text-zinc-300 transition hover:bg-white/[0.07]"
+                    onClick={() => {
+                      onOpen("settings");
+                      onNavigate?.();
+                    }}
+                    type="button"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Rocket className="h-4 w-4" />
+                      Nitro
+                    </span>
+                  </button>
+                  <button
+                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${
+                      activeView === "SHOP"
+                        ? "bg-violet-500/20 text-violet-100"
+                        : "text-zinc-300 hover:bg-white/[0.07]"
+                    }`}
+                    onClick={() => {
+                      setActiveShop();
+                      onNavigate?.();
+                    }}
+                    type="button"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <ShoppingBag className="h-4 w-4" />
+                      Shop
+                    </span>
+                  </button>
+                  <button
+                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${
+                      activeView === "QUESTS"
+                        ? "bg-violet-500/20 text-violet-100"
+                        : "text-zinc-300 hover:bg-white/[0.07]"
+                    }`}
+                    onClick={() => {
+                      setActiveQuests();
+                      onNavigate?.();
+                    }}
+                    type="button"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <ScrollText className="h-4 w-4" />
+                      Quests
+                    </span>
+                  </button>
+                </div>
+
+                <p className="px-2 pb-1 pt-1 text-[11px] uppercase tracking-[0.14em] text-zinc-500">
+                  Direct Messages
+                </p>
+                {dmConversations.map((conversation) => {
+                  const active = conversation.thread.id === activeDmThreadId;
+                  const label =
+                    conversation.otherProfile.full_name ??
+                    conversation.otherProfile.username ??
+                    "Orbit User";
+                  const online = onlineProfileIds.includes(conversation.otherProfile.id);
+                  return (
+                    <button
+                      className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-sm transition ${
+                        active
+                          ? "bg-violet-500/20 text-violet-100"
+                          : "text-zinc-300 hover:bg-white/[0.07]"
+                      }`}
+                      key={conversation.thread.id}
+                      onClick={() => {
+                        setActiveDmThread(conversation.thread.id);
+                        onNavigate?.();
+                      }}
+                      type="button"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate">{label}</span>
+                        <span className="block truncate text-[11px] text-zinc-500">
+                          {conversation.lastMessage?.content ?? "No messages yet"}
+                        </span>
+                      </span>
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full ${
+                          online ? "bg-emerald-400" : "bg-zinc-600"
+                        }`}
+                      />
+                    </button>
+                  );
+                })}
+              </>
+            )}
 
           {isServerView && !activeServer ? (
             <div className="rounded-xl border border-dashed border-white/10 p-3 text-xs text-zinc-500">

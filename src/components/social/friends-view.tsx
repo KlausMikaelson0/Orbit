@@ -10,10 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrbitSocialContext } from "@/src/context/orbit-social-context";
-import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
+import { useOrbitNavStore, type OrbitFriendsTab } from "@/src/stores/use-orbit-nav-store";
 import type { OrbitFriendView, OrbitProfile } from "@/src/types/orbit";
-
-type FriendsTab = "ALL" | "ONLINE" | "PENDING" | "BLOCKED" | "ADD";
 
 interface FriendsViewProps {
   sendFriendRequest: (identifier: string) => Promise<{ error?: string }>;
@@ -45,7 +43,8 @@ export function FriendsView({
   openOrCreateDmWithProfile,
 }: FriendsViewProps) {
   const { loadingSocial } = useOrbitSocialContext();
-  const [tab, setTab] = useState<FriendsTab>("ALL");
+  const tab = useOrbitNavStore((state) => state.friendsTab);
+  const setFriendsTab = useOrbitNavStore((state) => state.setFriendsTab);
   const [requestInput, setRequestInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -209,11 +208,11 @@ export function FriendsView({
           <p className="text-sm font-semibold">Friends</p>
         </div>
         <div className="mt-3 flex items-center gap-2">
-          {(["ALL", "ONLINE", "PENDING", "BLOCKED", "ADD"] as FriendsTab[]).map((item) => (
+          {(["ALL", "ONLINE", "PENDING", "BLOCKED", "ADD"] as OrbitFriendsTab[]).map((item) => (
             <Button
               className="rounded-full"
               key={item}
-              onClick={() => setTab(item)}
+              onClick={() => setFriendsTab(item)}
               size="sm"
               type="button"
               variant={tab === item ? "default" : "secondary"}
